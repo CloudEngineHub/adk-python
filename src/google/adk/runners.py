@@ -26,9 +26,9 @@ from typing import Callable
 from typing import Generator
 from typing import List
 from typing import Optional
+from typing import TYPE_CHECKING
 import warnings
 
-from google.adk.apps.compaction import _run_compaction_for_sliding_window
 from google.genai import types
 
 from .agents.base_agent import BaseAgent
@@ -38,10 +38,7 @@ from .agents.invocation_context import InvocationContext
 from .agents.invocation_context import new_invocation_context_id
 from .agents.live_request_queue import LiveRequestQueue
 from .agents.run_config import RunConfig
-from .apps.app import App
-from .apps.app import ResumabilityConfig
 from .artifacts.base_artifact_service import BaseArtifactService
-from .artifacts.in_memory_artifact_service import InMemoryArtifactService
 from .auth.credential_service.base_credential_service import BaseCredentialService
 from .code_executors.built_in_code_executor import BuiltInCodeExecutor
 from .errors.session_not_found_error import SessionNotFoundError
@@ -51,18 +48,20 @@ from .flows.llm_flows import contents
 from .flows.llm_flows.functions import find_event_by_function_call_id
 from .flows.llm_flows.functions import find_matching_function_call
 from .memory.base_memory_service import BaseMemoryService
-from .memory.in_memory_memory_service import InMemoryMemoryService
 from .platform.thread import create_thread
 from .plugins.base_plugin import BasePlugin
 from .plugins.plugin_manager import PluginManager
 from .sessions.base_session_service import BaseSessionService
 from .sessions.base_session_service import GetSessionConfig
-from .sessions.in_memory_session_service import InMemorySessionService
 from .sessions.session import Session
 from .telemetry.tracing import tracer
 from .tools.base_toolset import BaseToolset
 from .utils._debug_output import print_event
 from .utils.context_utils import Aclosing
+
+if TYPE_CHECKING:
+  from .apps.app import App
+  from .apps.app import ResumabilityConfig
 
 logger = logging.getLogger('google_adk.' + __name__)
 
@@ -620,6 +619,8 @@ class Runner:
         # the end of an invocation.)
         if self.app and self.app.events_compaction_config:
           logger.debug('Running event compactor.')
+          from google.adk.apps.compaction import _run_compaction_for_sliding_window
+
           await _run_compaction_for_sliding_window(
               self.app,
               invocation_context.session,
@@ -1677,6 +1678,10 @@ class InMemoryRunner(Runner):
         app: Optional App instance.
         plugin_close_timeout: The timeout in seconds for plugin close methods.
     """
+    from .artifacts.in_memory_artifact_service import InMemoryArtifactService
+    from .memory.in_memory_memory_service import InMemoryMemoryService
+    from .sessions.in_memory_session_service import InMemorySessionService
+
     if app is None and app_name is None:
       app_name = 'InMemoryRunner'
     super().__init__(
