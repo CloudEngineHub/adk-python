@@ -608,7 +608,7 @@ class Runner:
         async with Aclosing(
             self._exec_with_plugin(
                 invocation_context=invocation_context,
-                session=session,
+                session=invocation_context.session,
                 execute_fn=execute,
                 is_live_call=False,
             )
@@ -622,7 +622,7 @@ class Runner:
           logger.debug('Running event compactor.')
           await _run_compaction_for_sliding_window(
               self.app,
-              session,
+              invocation_context.session,
               self.session_service,
               skip_token_compaction=invocation_context.token_compaction_checked,
           )
@@ -841,7 +841,7 @@ class Runner:
 
     Args:
       invocation_context: The invocation context
-      session: The current session
+      session: The current session (ignored, kept for backward compatibility)
       execute_fn: A callable that returns an AsyncGenerator of Events
       is_live_call: Whether this is a live call
 
@@ -866,7 +866,7 @@ class Runner:
       )
       if self._should_append_event(early_exit_event, is_live_call):
         await self.session_service.append_event(
-            session=session,
+            session=invocation_context.session,
             event=early_exit_event,
         )
       yield early_exit_event
@@ -931,13 +931,13 @@ class Runner:
                 )
                 if self._should_append_event(event, is_live_call):
                   await self.session_service.append_event(
-                      session=session, event=output_event
+                      session=invocation_context.session, event=output_event
                   )
 
                 for buffered_event in buffered_events:
                   logger.debug('Appending buffered event: %s', buffered_event)
                   await self.session_service.append_event(
-                      session=session, event=buffered_event
+                      session=invocation_context.session, event=buffered_event
                   )
                   yield buffered_event  # yield buffered events to caller
                 buffered_events = []
@@ -947,12 +947,12 @@ class Runner:
                 if self._should_append_event(event, is_live_call):
                   logger.debug('Appending non-buffered event: %s', event)
                   await self.session_service.append_event(
-                      session=session, event=output_event
+                      session=invocation_context.session, event=output_event
                   )
           else:
             if event.partial is not True:
               await self.session_service.append_event(
-                  session=session, event=output_event
+                  session=invocation_context.session, event=output_event
               )
 
           yield output_event
@@ -1004,8 +1004,8 @@ class Runner:
         file_name = f'artifact_{invocation_context.invocation_id}_{i}'
         await self.artifact_service.save_artifact(
             app_name=self.app_name,
-            user_id=session.user_id,
-            session_id=session.id,
+            user_id=invocation_context.session.user_id,
+            session_id=invocation_context.session.id,
             filename=file_name,
             artifact=part,
         )
@@ -1032,7 +1032,9 @@ class Runner:
     if function_call := invocation_context._find_matching_function_call(event):
       event.branch = function_call.branch
 
-    await self.session_service.append_event(session=session, event=event)
+    await self.session_service.append_event(
+        session=invocation_context.session, event=event
+    )
 
   async def run_live(
       self,
@@ -1127,7 +1129,9 @@ class Runner:
     )
 
     root_agent = self.agent
-    invocation_context.agent = self._find_agent_to_run(session, root_agent)
+    invocation_context.agent = self._find_agent_to_run(
+        invocation_context.session, root_agent
+    )
 
     async def execute(ctx: InvocationContext) -> AsyncGenerator[Event]:
       async with Aclosing(ctx.agent.run_live(ctx)) as agen:
@@ -1137,7 +1141,7 @@ class Runner:
     async with Aclosing(
         self._exec_with_plugin(
             invocation_context=invocation_context,
-            session=session,
+            session=invocation_context.session,
             execute_fn=execute,
             is_live_call=True,
         )
@@ -1355,14 +1359,16 @@ class Runner:
     # Step 2: Handle new message, by running callbacks and appending to
     # session.
     await self._handle_new_message(
-        session=session,
+        session=invocation_context.session,
         new_message=new_message,
         invocation_context=invocation_context,
         run_config=run_config,
         state_delta=state_delta,
     )
     # Step 3: Set agent to run for the invocation.
-    invocation_context.agent = self._find_agent_to_run(session, self.agent)
+    invocation_context.agent = self._find_agent_to_run(
+        invocation_context.session, self.agent
+    )
     return invocation_context
 
   async def _setup_context_for_resumed_invocation(
@@ -1411,7 +1417,7 @@ class Runner:
     # Step 3: Maybe handle new message.
     if new_message:
       await self._handle_new_message(
-          session=session,
+          session=invocation_context.session,
           new_message=user_message,
           invocation_context=invocation_context,
           run_config=run_config,
@@ -1425,7 +1431,9 @@ class Runner:
     # started from a sub-agent and paused on a sub-agent.
     # We should find the appropriate agent to run to continue the invocation.
     if self.agent.name not in invocation_context.end_of_agents:
-      invocation_context.agent = self._find_agent_to_run(session, self.agent)
+      invocation_context.agent = self._find_agent_to_run(
+          invocation_context.session, self.agent
+      )
     return invocation_context
 
   def _find_user_message_for_invocation(
@@ -1559,7 +1567,7 @@ class Runner:
       if 'save_input_blobs_as_artifacts' in run_config.model_fields_set:
         deprecated_save_blobs = run_config.save_input_blobs_as_artifacts
       await self._append_new_message_to_session(
-          session=session,
+          session=invocation_context.session,
           new_message=new_message,
           invocation_context=invocation_context,
           save_input_blobs_as_artifacts=deprecated_save_blobs,
