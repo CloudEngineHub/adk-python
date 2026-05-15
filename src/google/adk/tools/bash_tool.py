@@ -29,6 +29,7 @@ from typing import Optional
 
 from google.genai import types
 
+from .. import features
 from .base_tool import BaseTool
 from .tool_context import ToolContext
 
@@ -98,6 +99,7 @@ def _set_resource_limits(policy: BashToolPolicy) -> None:
     logger.warning("Failed to set resource limits: %s", e)
 
 
+@features.experimental(features.FeatureName.SKILL_TOOLSET)
 class ExecuteBashTool(BaseTool):
   """Tool to execute a validated bash command within a workspace directory."""
 
