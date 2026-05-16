@@ -11,35 +11,27 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-from __future__ import annotations
-
-import importlib
-from typing import TYPE_CHECKING
+import logging
 
 from .base_memory_service import BaseMemoryService
+from .in_memory_memory_service import InMemoryMemoryService
+from .vertex_ai_memory_bank_service import VertexAiMemoryBankService
 
-if TYPE_CHECKING:
-  from .in_memory_memory_service import InMemoryMemoryService
-  from .vertex_ai_memory_bank_service import VertexAiMemoryBankService
-  from .vertex_ai_rag_memory_service import VertexAiRagMemoryService
+logger = logging.getLogger('google_adk.' + __name__)
 
 __all__ = [
     'BaseMemoryService',
     'InMemoryMemoryService',
     'VertexAiMemoryBankService',
-    'VertexAiRagMemoryService',
 ]
 
-_LAZY_MEMBERS: dict[str, str] = {
-    'InMemoryMemoryService': 'in_memory_memory_service',
-    'VertexAiMemoryBankService': 'vertex_ai_memory_bank_service',
-    'VertexAiRagMemoryService': 'vertex_ai_rag_memory_service',
-}
+try:
+  from .vertex_ai_rag_memory_service import VertexAiRagMemoryService
 
-
-def __getattr__(name: str):
-  if name in _LAZY_MEMBERS:
-    module = importlib.import_module(f'{__name__}.{_LAZY_MEMBERS[name]}')
-    return vars(module)[name]
-  raise AttributeError(f'module {__name__!r} has no attribute {name!r}')
+  __all__.append('VertexAiRagMemoryService')
+except ImportError:
+  logger.debug(
+      'The Vertex SDK is not installed. If you want to use the'
+      ' VertexAiRagMemoryService please install it. If not, you can ignore this'
+      ' warning.'
+  )
