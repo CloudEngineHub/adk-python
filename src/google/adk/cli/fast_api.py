@@ -26,8 +26,12 @@ from typing import Mapping
 from typing import Optional
 
 import click
-from fastapi import FastAPI, File, HTTPException, UploadFile
-from fastapi.responses import FileResponse, PlainTextResponse
+from fastapi import FastAPI
+from fastapi import File
+from fastapi import HTTPException
+from fastapi import UploadFile
+from fastapi.responses import FileResponse
+from fastapi.responses import PlainTextResponse
 from opentelemetry.sdk.trace import export
 from opentelemetry.sdk.trace import TracerProvider
 from starlette.types import Lifespan
@@ -79,6 +83,7 @@ def _register_builder_endpoints(app: FastAPI, web: bool, agents_dir: str):
     return
 
   import shutil
+
   import yaml
 
   agents_base_path = (Path.cwd() / agents_dir).resolve()
@@ -447,8 +452,6 @@ def get_fast_api_app(
     The configured FastAPI application instance.
   """
 
-
-
   # Enable denylist enforcement for config loads if web UI is enabled.
   if web:
     from ..agents import config_agent_utils
@@ -467,7 +470,9 @@ def get_fast_api_app(
   else:
     this_module = sys.modules[__name__]
     eval_sets_manager = this_module.LocalEvalSetsManager(agents_dir=agents_dir)
-    eval_set_results_manager = this_module.LocalEvalSetResultsManager(agents_dir=agents_dir)
+    eval_set_results_manager = this_module.LocalEvalSetResultsManager(
+        agents_dir=agents_dir
+    )
 
   # initialize Agent Loader if not passed as argument
   if agent_loader is None:

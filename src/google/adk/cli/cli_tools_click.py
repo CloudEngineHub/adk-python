@@ -48,7 +48,6 @@ LOG_LEVELS = click.Choice(
 )
 
 
-
 def _apply_feature_overrides(
     *,
     enable_features: tuple[str, ...] = (),
