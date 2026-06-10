@@ -77,7 +77,7 @@ USER myuser
 # Set up environment variables - Start
 ENV PATH="/home/myuser/.local/bin:$PATH"
 
-ENV GOOGLE_GENAI_USE_VERTEXAI=1
+ENV GOOGLE_GENAI_USE_ENTERPRISE=1
 ENV GOOGLE_CLOUD_PROJECT={gcp_project_id}
 ENV GOOGLE_CLOUD_LOCATION={gcp_region}
 
@@ -854,7 +854,7 @@ def to_agent_engine(
       Google Cloud.
     api_key (str): Optional. The API key to use for Express Mode. If not
       provided, the API key from the GOOGLE_API_KEY environment variable will be
-      used. It will only be used if GOOGLE_GENAI_USE_VERTEXAI is true.
+      used. It will only be used if GOOGLE_GENAI_USE_ENTERPRISE is true.
     adk_app_object (str): Deprecated. This argument is no longer required or
       used.
     agent_engine_id (str): Optional. The ID of the Agent Runtime instance to
@@ -1060,7 +1060,7 @@ def to_agent_engine(
             fg='yellow',
         )
       else:
-        env_vars['GOOGLE_GENAI_USE_VERTEXAI'] = '1'
+        env_vars['GOOGLE_GENAI_USE_ENTERPRISE'] = '1'
         env_vars['GOOGLE_API_KEY'] = api_key
     elif not project:
       if 'GOOGLE_API_KEY' in env_vars:
