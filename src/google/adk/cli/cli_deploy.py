@@ -35,9 +35,6 @@ from .utils import _onboarding
 _IS_WINDOWS = os.name == 'nt'
 _GCLOUD_CMD = 'gcloud.cmd' if _IS_WINDOWS else 'gcloud'
 _LOCAL_STORAGE_FLAG_MIN_VERSION: Final[str] = '1.21.0'
-_AGENT_ENGINE_REQUIREMENT: Final[str] = (
-    'google-cloud-aiplatform[adk,agent_engines]'
-)
 
 
 def _ensure_agent_engine_dependency(requirements_txt_path: str) -> None:
@@ -64,7 +61,7 @@ def _ensure_agent_engine_dependency(requirements_txt_path: str) -> None:
     if requirements and not requirements.endswith('\n'):
       f.write('\n')
     f.write('google-cloud-aiplatform[agent_engines]\n')
-    f.write(f'google-adk=={__version__}\n')
+    f.write(f'google-adk[a2a]=={__version__}\n')
 
 
 _DOCKERFILE_TEMPLATE: Final[str] = """
@@ -87,7 +84,7 @@ ENV GOOGLE_CLOUD_LOCATION={gcp_region}
 # Set up environment variables - End
 
 # Install ADK - Start
-RUN pip install google-adk=={adk_version}
+RUN pip install "google-adk[a2a]=={adk_version}"
 # Install ADK - End
 
 # Copy agent - Start
@@ -1017,8 +1014,8 @@ def to_agent_engine(
       click.echo(f'Creating {requirements_txt_path}...')
       with open(requirements_txt_path, 'w', encoding='utf-8') as f:
         f.write('google-cloud-aiplatform[agent_engines]\n')
-        f.write(f'google-adk=={__version__}\n')
-        click.echo(f'Using google-adk=={__version__} in requirements')
+        f.write(f'google-adk[a2a]=={__version__}\n')
+        click.echo(f'Using google-adk[a2a]=={__version__} in requirements')
       click.echo(f'Created {requirements_txt_path}')
     _ensure_agent_engine_dependency(requirements_txt_path)
 
