@@ -50,6 +50,7 @@ Use the following structure and instructions to create the guide for the code un
 - Present a single, minimum implementation of the code unit to demonstrate its use.
 - Show enough of the containing classes to make it clear where the code could be used.
 - Use unit test code as a starting point for the code example, if available.
+- When writing a sample agent, do not set the `model` attribute.
 
 ## How it works
 
