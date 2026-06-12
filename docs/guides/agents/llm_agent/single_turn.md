@@ -162,3 +162,7 @@ editor_agent = LlmAgent(
     defaults to `include_contents="none"`.
 -   **No Direct Transfer**: You cannot use `transfer_to_agent` to target a
     `single_turn` agent. They must be invoked via tool calls.
+
+## Related samples
+
+-   [Single-Turn Sub-Agent Sample](../../../../contributing/samples/multi_agent/single_turn_sub_agent/README.md) - A complete sample demonstrating how to define a single-turn sub-agent and use it as a tool.

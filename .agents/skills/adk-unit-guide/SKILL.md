@@ -28,6 +28,7 @@ This skill creates a detailed developer guide for new or updated code file or di
 - Look for an existing guide in the `/docs/guides/***` directory of this repository.
   - If a guide already exists, update the existing guide incrementally and prioritize preserving the previous content as much as possible.
   - If no guide exists, create a guide file for the new code unit in the `/docs/guides/***` directory of this repository, using the relative path of the code unit. For example, if the code unit is called `/topic/function/class.ext`, create a guide in the location `/docs/guides/topic/function/class/index.md`.
+- **Update the Index**: Whenever a new guide is created, or an existing guide's title/summary changes, update the index file `/docs/guides/README.md`. Ensure the guide is listed under the correct category with a link and a brief summary.
 
 ### Guide structure and content
 
@@ -75,5 +76,9 @@ Use the following structure and instructions to create the guide for the code un
 ## Limitations
 
 - Mention any limitations of the code unit, if known.
+
+## Related samples
+
+- Link to relevant samples in the `contributing/` directory that demonstrate the use of this code unit.
 
 ```
