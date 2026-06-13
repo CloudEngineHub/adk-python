@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import asyncio
 from collections import deque
+from contextlib import AbstractAsyncContextManager
 from contextlib import AsyncExitStack
 from datetime import timedelta
 import functools
@@ -26,7 +27,6 @@ import os
 import sys
 import threading
 from typing import Any
-from typing import AsyncContextManager
 from typing import AsyncIterator
 from typing import Dict
 from typing import Optional
@@ -639,7 +639,7 @@ class MCPSessionManager:
       self,
       merged_headers: dict[str, str] | None = None,
       mtls_transport: httpx.AsyncBaseTransport | None = None,
-  ) -> AsyncContextManager[Any]:
+  ) -> AbstractAsyncContextManager[Any]:
     """Creates an MCP client based on the connection parameters."""
     if isinstance(self._connection_params, StdioConnectionParams):
       client = stdio_client(
