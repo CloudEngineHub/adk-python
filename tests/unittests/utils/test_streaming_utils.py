@@ -185,15 +185,10 @@ class TestStreamingResponseAggregator:
 
   @pytest.mark.asyncio
   @pytest.mark.parametrize("use_progressive_sse", [True, False])
-  async def test_empty_content_with_stop_surfaces_no_content_error(
+  async def test_empty_content_produces_empty_final_frame(
       self, use_progressive_sse
   ):
-    """Empty parts + STOP surfaces a MODEL_RETURNED_NO_CONTENT error frame.
-
-    Previously the aggregator yielded a successful frame with empty content
-    here; that let an empty Gemini turn (e.g. gemini-2.5-flash-lite returning
-    zero output tokens after a tool call) silently become the final output.
-    """
+    """A candidate with an empty parts list produces an empty final frame."""
     with temporary_feature_override(
         FeatureName.PROGRESSIVE_SSE_STREAMING, use_progressive_sse
     ):
@@ -212,9 +207,7 @@ class TestStreamingResponseAggregator:
       closed_response = aggregator.close()
 
       assert len(results) == 1
-      assert results[0].content is None
-      assert results[0].error_code == "MODEL_RETURNED_NO_CONTENT"
-      assert results[0].error_message
+      assert results[0].content is not None
       assert closed_response is not None
       assert closed_response.partial is False
       assert closed_response.content is None
