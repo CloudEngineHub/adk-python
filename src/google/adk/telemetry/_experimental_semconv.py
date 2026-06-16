@@ -35,6 +35,7 @@ from collections.abc import Mapping
 from collections.abc import MutableMapping
 from collections.abc import Sequence
 import json
+import logging
 import sys
 from typing import Literal
 from typing import Protocol
@@ -80,6 +81,8 @@ GEN_AI_USAGE_REASONING_OUTPUT_TOKENS = 'gen_ai.usage.reasoning.output_tokens'
 FUNCTION_TOOL_DEFINITION_TYPE = 'function'
 
 COMPLETION_DETAILS_EVENT_NAME = 'gen_ai.client.inference.operation.details'
+
+logger = logging.getLogger('google_adk.' + __name__)
 
 
 class Text(TypedDict):
@@ -414,9 +417,19 @@ def _tool_definition_from_mcp_tool(tool: McpTool) -> FunctionToolDefinition:
   )
 
 
-async def _to_tool_definitions(
+def _to_tool_definitions(
     tool: types.ToolUnionDict,
 ) -> list[ToolDefinition]:
+  """Synchronously converts a single tool entry into ``ToolDefinition``s.
+
+  By the time telemetry inspects ``llm_request.config.tools``, ADK's tool
+  pipeline has already materialized every ``BaseTool`` (including
+  ``McpTool``) into ``types.Tool(function_declarations=[...])`` via
+  ``BaseTool.process_llm_request`` → ``LlmRequest.append_tools``. The only
+  way a non-``types.Tool`` ends up here is if a user bypasses ADK and
+  passes raw values (callables, ``mcp.Tool``, ``mcp.ClientSession``) via
+  google-genai's native ``GenerateContentConfig.tools`` API.
+  """
   if isinstance(tool, types.Tool):
     return _tool_to_tool_definition(tool)
 
@@ -431,8 +444,15 @@ async def _to_tool_definitions(
       return [_tool_definition_from_mcp_tool(tool)]
 
     if isinstance(tool, McpClientSession):
-      result = await tool.list_tools()
-      return [_model_dump_to_tool_definition(t) for t in result.tools]
+      # Resolving these would require ``await session.list_tools()``,
+      # which ADK's standard MCP pipeline never triggers (MCPToolset
+      # materializes tools upstream into FunctionDeclarations). Skip
+      # silently rather than make the entire builder async.
+      logger.warning(
+          'Unresolved McpClientSession found in telemetry emission. Some tool'
+          ' definitions may be dropped'
+      )
+      return []
 
   return [
       GenericToolDefinition(
@@ -469,24 +489,36 @@ def _operation_details_attributes_no_content(
   }
 
 
-async def _build_request_operation_details(
+def _resolve_tool_definitions(
+    tools: Sequence[types.ToolUnionDict],
+) -> list[ToolDefinition]:
+  """Flattens a sequence of tools into a list of ``ToolDefinition``s."""
+  resolved: list[ToolDefinition] = []
+  for tool in tools:
+    for de in _to_tool_definitions(tool):
+      if de:
+        resolved.append(de)
+  return resolved
+
+
+def _build_request_operation_details(
     llm_request: LlmRequest,
 ) -> dict[str, AttributeValue]:
-  """Pure builder for the per-request operation-details attributes."""
+  """Pure builder for the per-request operation-details attributes.
+
+  Synchronous by construction: every tool entry on
+  ``llm_request.config.tools`` is resolvable without I/O (see
+  ``_to_tool_definitions``). Keeping this synchronous lets it run
+  unchanged from inside synchronous code paths (e.g. the WebUI log
+  exporter, which executes inside an OTel log record processor).
+  """
   input_messages = _to_input_messages(
       transformers.t_contents(llm_request.contents)
       if llm_request.contents
       else []
   )
   system_instructions = _to_system_instructions(llm_request.config)
-
-  tool_definitions: list[ToolDefinition] = []
-  if tools := llm_request.config.tools:
-    for tool in tools:
-      definitions = await _to_tool_definitions(tool)
-      for de in definitions:
-        if de:
-          tool_definitions.append(de)
+  tool_definitions = _resolve_tool_definitions(llm_request.config.tools or [])
 
   return {
       GEN_AI_INPUT_MESSAGES: input_messages,
@@ -560,12 +592,12 @@ def set_operation_details_common_attributes(
     operation_details_common_attributes.update(log_only_attributes)
 
 
-async def set_operation_details_attributes_from_request(
+def set_operation_details_attributes_from_request(
     operation_details_attributes: MutableMapping[str, AttributeValue],
     llm_request: LlmRequest,
 ) -> None:
   operation_details_attributes.update(
-      await _build_request_operation_details(llm_request)
+      _build_request_operation_details(llm_request)
   )
 
 

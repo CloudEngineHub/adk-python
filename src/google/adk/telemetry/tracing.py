@@ -789,8 +789,9 @@ async def _use_native_generate_content_span(
     )
     gc_span = GenerateContentSpan(span)
 
-    await set_operation_details_attributes_from_request(
-        gc_span.operation_details_attributes, llm_request
+    set_operation_details_attributes_from_request(
+        gc_span.operation_details_attributes,
+        llm_request,
     )
     yield gc_span
 
