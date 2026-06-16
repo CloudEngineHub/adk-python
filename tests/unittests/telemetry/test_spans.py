@@ -27,10 +27,10 @@ from google.adk.models.llm_request import LlmRequest
 from google.adk.models.llm_response import LlmResponse
 from google.adk.sessions.in_memory_session_service import InMemorySessionService
 from google.adk.telemetry._experimental_semconv import _safe_json_serialize_no_whitespaces
-from google.adk.telemetry.tracing import _safe_json_serialize
 from google.adk.telemetry.tracing import _use_extra_generate_content_attributes
 from google.adk.telemetry.tracing import ADK_CAPTURE_MESSAGE_CONTENT_IN_SPANS
 from google.adk.telemetry.tracing import GCP_MCP_SERVER_DESTINATION_ID
+from google.adk.telemetry.tracing import safe_json_serialize
 from google.adk.telemetry.tracing import trace_agent_invocation
 from google.adk.telemetry.tracing import trace_call_llm
 from google.adk.telemetry.tracing import trace_inference_result
@@ -1485,7 +1485,7 @@ def test_trace_tool_call_with_standard_error(
 def test_safe_json_serialize_circular_dict_returns_not_serializable():
   obj = {}
   obj['self'] = obj
-  assert _safe_json_serialize(obj) == '<not serializable>'
+  assert safe_json_serialize(obj) == '<not serializable>'
 
 
 def test_safe_json_serialize_no_whitespaces_circular_dict_returns_not_serializable():
