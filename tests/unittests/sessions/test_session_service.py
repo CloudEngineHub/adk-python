@@ -1336,6 +1336,56 @@ async def test_append_event_reads_storage_revision_before_commit():
 
 
 @pytest.mark.asyncio
+async def test_create_session_reads_storage_revision_before_commit():
+  """create_session captures session revision before commit completes."""
+  service = DatabaseSessionService('sqlite+aiosqlite:///:memory:')
+  await service._prepare_tables()
+  schema = service._get_schema_classes()
+  original_get_update_timestamp = schema.StorageSession.get_update_timestamp
+  original_get_update_marker = schema.StorageSession.get_update_marker
+  revision_read_state = {'committed': False, 'post_commit_reads': 0}
+
+  def _track_revision_read(original):
+    def wrapper(self, *args, **kwargs):
+      if revision_read_state['committed']:
+        revision_read_state['post_commit_reads'] += 1
+      return original(self, *args, **kwargs)
+
+    return wrapper
+
+  schema.StorageSession.get_update_timestamp = _track_revision_read(
+      original_get_update_timestamp
+  )
+  schema.StorageSession.get_update_marker = _track_revision_read(
+      original_get_update_marker
+  )
+
+  try:
+    original_factory = service.database_session_factory
+
+    def _spy_factory():
+      return _CommitOrderSpySession(
+          original_factory(),
+          on_committed=lambda: revision_read_state.update({'committed': True}),
+      )
+
+    service.database_session_factory = _spy_factory
+
+    session = await service.create_session(
+        app_name='app', user_id='user', session_id='s1'
+    )
+
+    assert revision_read_state['post_commit_reads'] == 0
+    assert session.last_update_time is not None
+    assert session._storage_update_marker is not None
+  finally:
+    schema.StorageSession.get_update_timestamp = original_get_update_timestamp
+    schema.StorageSession.get_update_marker = original_get_update_marker
+
+    await service.close()
+
+
+@pytest.mark.asyncio
 async def test_delete_session_calls_rollback_on_commit_failure():
   """Verifies that a commit failure during delete_session triggers an explicit
   rollback() call via _rollback_on_exception_session."""
