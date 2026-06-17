@@ -709,6 +709,14 @@ def test_safe_json_serialize_circular_list_falls_back_to_str():
   assert isinstance(_safe_json_serialize(obj), str)
 
 
+def test_safe_json_serialize_recursion_error_falls_back_to_str():
+  with patch(
+      "google.adk.models.lite_llm.json.dumps",
+      side_effect=RecursionError("maximum recursion depth"),
+  ):
+    assert _safe_json_serialize({"a": 1}) == str({"a": 1})
+
+
 MULTIPLE_FUNCTION_CALLS_STREAM = [
     ModelResponseStream(
         choices=[

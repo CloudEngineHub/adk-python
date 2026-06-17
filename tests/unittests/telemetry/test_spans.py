@@ -1455,6 +1455,20 @@ def test_safe_json_serialize_no_whitespaces_circular_dict_returns_not_serializab
   assert _safe_json_serialize_no_whitespaces(obj) == '<not serializable>'
 
 
+def test_safe_json_serialize_recursion_error_returns_not_serializable():
+  with mock.patch.object(
+      json, 'dumps', side_effect=RecursionError('maximum recursion depth')
+  ):
+    assert safe_json_serialize({'a': 1}) == '<not serializable>'
+
+
+def test_safe_json_serialize_no_whitespaces_recursion_error_returns_not_serializable():
+  with mock.patch.object(
+      json, 'dumps', side_effect=RecursionError('maximum recursion depth')
+  ):
+    assert _safe_json_serialize_no_whitespaces({'a': 1}) == '<not serializable>'
+
+
 def test_use_extra_generate_content_attributes_upgraded_version(monkeypatch):
   # Arrange: Mock the presence of the new event-only context key in the contrib module
   from opentelemetry.instrumentation import google_genai
