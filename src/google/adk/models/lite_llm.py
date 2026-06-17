@@ -395,6 +395,8 @@ def _redact_file_uri_for_log(
   """Returns a privacy-preserving identifier for logs."""
   if display_name:
     return display_name
+  if file_uri.startswith("assistant-"):
+    return "assistant-<redacted>"
   if _looks_like_openai_file_id(file_uri):
     return "file-<redacted>"
   try:
