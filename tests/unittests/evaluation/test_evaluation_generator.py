@@ -18,10 +18,15 @@ import asyncio
 
 from google.adk.evaluation.app_details import AgentDetails
 from google.adk.evaluation.app_details import AppDetails
+from google.adk.evaluation.conversation_scenarios import ConversationScenario
+from google.adk.evaluation.eval_case import EvalCase
 from google.adk.evaluation.eval_case import get_all_tool_calls
+from google.adk.evaluation.eval_set import EvalSet
 from google.adk.evaluation.evaluation_generator import _LiveSession
 from google.adk.evaluation.evaluation_generator import EvaluationGenerator
 from google.adk.evaluation.request_intercepter_plugin import _RequestIntercepterPlugin
+from google.adk.evaluation.simulation.llm_backed_user_simulator import LlmBackedUserSimulator
+from google.adk.evaluation.simulation.llm_backed_user_simulator import LlmBackedUserSimulatorConfig
 from google.adk.evaluation.simulation.user_simulator import NextUserMessage
 from google.adk.evaluation.simulation.user_simulator import Status as UserSimulatorStatus
 from google.adk.evaluation.simulation.user_simulator import UserSimulator
@@ -684,6 +689,60 @@ class TestGenerateInferencesFromRootAgent:
 
     # Verify that the _LiveSession constructor was called
     mock_live_session_cls.assert_called_once()
+
+
+class TestGenerateResponses:
+  """Test cases for EvaluationGenerator.generate_responses method."""
+
+  @pytest.mark.asyncio
+  async def test_generate_responses_passes_config_to_simulator_instance(
+      self, mocker
+  ):
+    """Tests that user_simulator_config reaches the actual UserSimulator instance when UserSimulatorProvider is not mocked."""
+    mock_process_query = mocker.patch(
+        "google.adk.evaluation.evaluation_generator.EvaluationGenerator._process_query",
+        new_callable=mocker.AsyncMock,
+        return_value=[],
+    )
+
+    user_simulator_config = LlmBackedUserSimulatorConfig(
+        model="gemini-2.5-flash",
+        max_allowed_invocations=5,
+        custom_instructions=(
+            "custom {{ stop_signal }} {{ conversation_plan }} {{"
+            " conversation_history }}"
+        ),
+    )
+    eval_set = EvalSet(
+        eval_set_id="test_set",
+        eval_cases=[
+            EvalCase(
+                eval_id="case_0",
+                conversation_scenario=ConversationScenario(
+                    starting_prompt="hello",
+                    conversation_plan="test plan",
+                ),
+            )
+        ],
+    )
+
+    await EvaluationGenerator.generate_responses(
+        eval_set=eval_set,
+        agent_module_path="some.agent.module",
+        repeat_num=1,
+        user_simulator_config=user_simulator_config,
+    )
+
+    mock_process_query.assert_called_once()
+    user_simulator = mock_process_query.call_args.args[1]
+    assert isinstance(user_simulator, LlmBackedUserSimulator)
+    assert user_simulator._config.model == "gemini-2.5-flash"
+    assert user_simulator._config.max_allowed_invocations == 5
+    assert (
+        user_simulator._config.custom_instructions
+        == "custom {{ stop_signal }} {{ conversation_plan }} {{"
+        " conversation_history }}"
+    )
 
 
 class TestLiveSessionCallbacks:
