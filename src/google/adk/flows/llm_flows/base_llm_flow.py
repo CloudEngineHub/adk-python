@@ -479,6 +479,29 @@ async def _process_agent_tools(
           tool_context=tool_context, llm_request=llm_request
       )
 
+  if invocation_context.live_request_queue is not None:
+    _mark_live_async_tools_non_blocking(llm_request)
+
+
+def _mark_live_async_tools_non_blocking(llm_request: LlmRequest) -> None:
+  """Marks live streaming and response-scheduling tools as NON_BLOCKING.
+
+  These tools emit asynchronous FunctionResponses, which the Live API only
+  accepts for NON_BLOCKING declarations.
+  """
+  if not llm_request.config.tools:
+    return
+  for gemini_tool in llm_request.config.tools:
+    for declaration in gemini_tool.function_declarations or []:
+      tool = llm_request.tools_dict.get(declaration.name)
+      if tool is None:
+        continue
+      is_streaming_tool = hasattr(tool, 'func') and inspect.isasyncgenfunction(
+          tool.func
+      )
+      if tool.response_scheduling is not None or is_streaming_tool:
+        declaration.behavior = types.Behavior.NON_BLOCKING
+
 
 class BaseLlmFlow(ABC):
   """A basic flow that calls the LLM in a loop until a final response is generated.
