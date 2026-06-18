@@ -182,6 +182,65 @@ def test_gemini_live_api_client_creation_with_projects_prefix():
     assert kwargs["enterprise"] is True
 
 
+def test_gemini_api_client_creation_with_client_kwargs():
+  mock_credentials = mock.MagicMock()
+  model = Gemini(
+      model="gemini-2.5-flash",
+      client_kwargs={
+          "enterprise": True,
+          "project": "my-project",
+          "location": "my-location",
+          "api_key": "my-key",
+          "credentials": mock_credentials,
+      },
+  )
+  with mock.patch("google.genai.Client", autospec=True) as mock_client:
+    _ = model.api_client
+    mock_client.assert_called_once()
+    _, kwargs = mock_client.call_args
+    assert kwargs["enterprise"] is True
+    assert kwargs["project"] == "my-project"
+    assert kwargs["location"] == "my-location"
+    assert kwargs["api_key"] == "my-key"
+    assert kwargs["credentials"] == mock_credentials
+
+  with mock.patch("google.genai.Client", autospec=True) as mock_client:
+    _ = model._live_api_client
+    mock_client.assert_called_once()
+    _, kwargs = mock_client.call_args
+    assert kwargs["enterprise"] is True
+    assert kwargs["project"] == "my-project"
+    assert kwargs["location"] == "my-location"
+    assert kwargs["api_key"] == "my-key"
+    assert kwargs["credentials"] == mock_credentials
+
+
+def test_gemini_serialization_excludes_client_kwargs():
+  mock_credentials = mock.MagicMock()
+  model = Gemini(
+      model="gemini-2.5-flash",
+      client_kwargs={
+          "enterprise": True,
+          "credentials": mock_credentials,
+      },
+  )
+  dumped = model.model_dump()
+  assert "client_kwargs" not in dumped
+
+
+def test_gemini_repr_excludes_client_kwargs():
+  mock_credentials = mock.MagicMock()
+  model = Gemini(
+      model="gemini-2.5-flash",
+      client_kwargs={
+          "enterprise": True,
+          "credentials": mock_credentials,
+      },
+  )
+  repr_str = repr(model)
+  assert "client_kwargs" not in repr_str
+
+
 def test_client_version_header():
   model = Gemini(model="gemini-2.5-flash")
   client = model.api_client

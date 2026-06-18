@@ -31,6 +31,7 @@ from urllib.parse import urlunparse
 
 from google.genai import types
 from google.genai.errors import ClientError
+from pydantic import Field
 from typing_extensions import override
 
 from ..utils._google_client_headers import get_tracking_headers
@@ -113,6 +114,11 @@ class Gemini(BaseLlm):
   """
 
   model: str = 'gemini-2.5-flash'
+
+  client_kwargs: Optional[dict[str, Any]] = Field(
+      default=None, exclude=True, repr=False
+  )
+  """Extra arguments to pass to the google.genai.Client constructor."""
 
   base_url: Optional[str] = None
   """The base URL for the AI platform service endpoint."""
@@ -349,6 +355,9 @@ class Gemini(BaseLlm):
     if self.model.startswith('projects/'):
       kwargs['enterprise'] = True
 
+    if self.client_kwargs:
+      kwargs.update(self.client_kwargs)
+
     return Client(**kwargs)
 
   @cached_property
@@ -393,6 +402,9 @@ class Gemini(BaseLlm):
     }
     if self.model.startswith('projects/'):
       kwargs['enterprise'] = True
+
+    if self.client_kwargs:
+      kwargs.update(self.client_kwargs)
 
     return Client(**kwargs)
 
