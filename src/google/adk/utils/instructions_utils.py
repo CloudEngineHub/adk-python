@@ -181,23 +181,28 @@ async def inject_session_state(
 
     if leading_count == trailing_count:
       n = leading_count
+      is_valid = _is_valid_path(full_path) or full_path.startswith('artifact.')
       if n % 2 == 0:
         # Even: Escaped, no evaluation
-        half_n = n // 2
-        return '{' * half_n + full_path + '}' * half_n
+        if is_valid:
+          half_n = n // 2
+          return '{' * half_n + full_path + '}' * half_n
+        else:
+          return raw_match
       else:
         # Odd: Evaluate and wrap
-        if not _is_valid_path(full_path) and not full_path.startswith('artifact.'):
+        if not is_valid:
           return raw_match
         evaluated_value = await _evaluate_path(full_path)
         wrap_braces = (n - 1) // 2
         return '{' * wrap_braces + evaluated_value + '}' * wrap_braces
     else:
       # Asymmetric: fallback to old behavior (treat as N=1 if valid path)
-      if not _is_valid_path(full_path) and not full_path.startswith('artifact.'):
+      if not _is_valid_path(full_path) and not full_path.startswith(
+          'artifact.'
+      ):
         return raw_match
       return await _evaluate_path(full_path)
-
 
   return await _async_sub(r'{+[^{}]*}+', _replace_match, template)
 

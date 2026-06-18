@@ -516,14 +516,19 @@ async def test_inject_session_state_with_invalid_nested_path_returns_original():
 
 @pytest.mark.asyncio
 async def test_inject_session_state_escaped_braces():
-  instruction_template = "This is a literal {{placeholder}} and this is {value}."
+  instruction_template = (
+      "This is a literal {{placeholder}} and this is {value}."
+  )
   invocation_context = await _create_test_readonly_context(
       state={"value": "real_value"}
   )
   populated_instruction = await instructions_utils.inject_session_state(
       instruction_template, invocation_context
   )
-  assert populated_instruction == "This is a literal {placeholder} and this is real_value."
+  assert (
+      populated_instruction
+      == "This is a literal {placeholder} and this is real_value."
+  )
 
 
 @pytest.mark.asyncio
@@ -556,7 +561,9 @@ async def test_inject_session_state_quadruple_braces():
   populated_instruction = await instructions_utils.inject_session_state(
       instruction_template, invocation_context
   )
-  assert populated_instruction == "This is literal double braces: {{placeholder}}."
+  assert (
+      populated_instruction == "This is literal double braces: {{placeholder}}."
+  )
 
 
 @pytest.mark.asyncio
@@ -581,4 +588,3 @@ async def test_inject_session_state_asymmetric_braces_right():
       instruction_template, invocation_context
   )
   assert populated_instruction == "Asymmetric right: real_value."
-
