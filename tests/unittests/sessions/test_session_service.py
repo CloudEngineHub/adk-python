@@ -34,6 +34,9 @@ from google.adk.sessions.vertex_ai_session_service import VertexAiSessionService
 from google.genai import types
 import pytest
 from sqlalchemy import delete
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio import create_async_engine
+from sqlalchemy.pool import StaticPool
 
 
 class SessionServiceType(enum.Enum):
@@ -1951,3 +1954,108 @@ def test_database_session_service_visible_in_module_namespace():
 
   assert 'DatabaseSessionService' in dir(sessions_module)
   assert sessions_module.DatabaseSessionService is DatabaseSessionService
+
+
+@pytest.mark.asyncio
+async def test_database_session_service_with_db_url():
+  """Test DatabaseSessionService initialization with db_url."""
+  # Test db_url as positional argument
+  service = DatabaseSessionService('sqlite+aiosqlite:///:memory:')
+  app_name = 'test_app'
+  user_id = 'test_user'
+
+  # Create and retrieve a session
+  session = await service.create_session(
+      app_name=app_name, user_id=user_id, state={'key': 'value'}
+  )
+  assert session.app_name == app_name
+  assert session.user_id == user_id
+  assert session.state == {'key': 'value'}
+
+  # Let's check that we can retrieve it
+  retrieved = await service.get_session(
+      app_name=app_name, user_id=user_id, session_id=session.id
+  )
+  assert retrieved == session
+
+  # test db_url as keyword argument
+  service2 = DatabaseSessionService(db_url='sqlite+aiosqlite:///:memory:')
+  session2 = await service2.create_session(
+      app_name=app_name, user_id=user_id, state={'key': 'value2'}
+  )
+  assert session2.state == {'key': 'value2'}
+
+
+@pytest.mark.asyncio
+async def test_database_session_service_with_db_engine():
+  """Test DatabaseSessionService initialization with db_engine."""
+  # Create an engine manually with StaticPool to avoid flakes
+  engine = create_async_engine(
+      'sqlite+aiosqlite:///:memory:',
+      poolclass=StaticPool,
+      connect_args={'check_same_thread': False},
+  )
+
+  # Create service with db_engine
+  service = DatabaseSessionService(db_engine=engine)
+  app_name = 'test_app'
+  user_id = 'test_user'
+
+  # Create and retrieve a session
+  session = await service.create_session(
+      app_name=app_name, user_id=user_id, state={'key': 'value'}
+  )
+  assert session.app_name == app_name
+  assert session.user_id == user_id
+  assert session.state == {'key': 'value'}
+
+  # Let's check that we can retrieve it
+  retrieved = await service.get_session(
+      app_name=app_name, user_id=user_id, session_id=session.id
+  )
+  assert retrieved == session
+
+
+@pytest.mark.asyncio
+async def test_database_session_service_caller_owned_engine_not_disposed_on_close():
+  """Verifies that a caller-owned engine is not disposed when the service is closed."""
+  engine = create_async_engine(
+      'sqlite+aiosqlite:///:memory:',
+      poolclass=StaticPool,
+      connect_args={'check_same_thread': False},
+  )
+
+  service = DatabaseSessionService(db_engine=engine)
+
+  # Use the service
+  session = await service.create_session(app_name='app', user_id='user')
+  assert session is not None
+
+  # Close the service
+  await service.close()
+
+  # Verify engine is still usable by running a query
+  async with engine.connect() as conn:
+    result = await conn.execute(text('SELECT 1;'))
+    assert result.scalar() == 1
+
+
+@pytest.mark.asyncio
+async def test_database_session_service_requires_one_argument():
+  """Test that DatabaseSessionService requires exactly one of db_url or db_engine."""
+  # Neither argument provided
+  with pytest.raises(
+      ValueError,
+      match="Exactly one of 'db_url' or 'db_engine' must be provided",
+  ):
+    DatabaseSessionService()
+
+  # Both arguments provided
+  engine = create_async_engine('sqlite+aiosqlite:///:memory:')
+  with pytest.raises(
+      ValueError,
+      match="Exactly one of 'db_url' or 'db_engine' must be provided",
+  ):
+    DatabaseSessionService(
+        db_url='sqlite+aiosqlite:///:memory:', db_engine=engine
+    )
