@@ -41,13 +41,16 @@ async def main():
   )
 
   pr_number = parse_number_string(PULL_REQUEST_NUMBER)
-  if not pr_number:
-    print(
-        f"Error: Invalid pull request number received: {PULL_REQUEST_NUMBER}."
+  if pr_number:
+    prompt = f"Please triage pull request #{pr_number}!"
+  else:
+    print("No pull request number received. Operating in batch mode.")
+    prompt = (
+        "Please use 'list_untriaged_pull_requests' to find 10 pull requests"
+        " that need triaging, then triage each one according to your"
+        " instructions."
     )
-    return
 
-  prompt = f"Please triage pull request #{pr_number}!"
   response = await call_agent_async(runner, USER_ID, session.id, prompt)
   print(f"<<<< Agent Final Output: {response}\n")
 

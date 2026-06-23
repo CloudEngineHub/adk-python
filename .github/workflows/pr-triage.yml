@@ -17,6 +17,9 @@ name: ADK Pull Request Triaging Agent
 on:
   pull_request_target:
     types: [opened, reopened, edited]
+  schedule:
+    # Run every 6 hours
+    - cron: '0 */6 * * *'
   workflow_dispatch:
     inputs:
       pr_number:
@@ -27,6 +30,7 @@ on:
 jobs:
   agent-triage-pull-request:
     if: >-
+      github.event_name == 'schedule' ||
       github.event_name == 'workflow_dispatch' || (
         github.event.pull_request.head.repo.full_name == github.repository &&
         !contains(github.event.pull_request.labels.*.name, 'google-contributor')
@@ -57,7 +61,7 @@ jobs:
           GOOGLE_GENAI_USE_VERTEXAI: 0
           OWNER: 'google'
           REPO: 'adk-python'
-          PULL_REQUEST_NUMBER: ${{ github.event.pull_request.number || github.event.inputs.pr_number }}
+          PULL_REQUEST_NUMBER: ${{ github.event.pull_request.number || github.event.inputs.pr_number || '' }}
           INTERACTIVE: ${{ vars.PR_TRIAGE_INTERACTIVE }}
           PYTHONPATH: contributing/samples/adk_team
         run: python -m adk_pr_triaging_agent.main
