@@ -230,6 +230,12 @@ class Context(ReadonlyContext):
     self._error_node_path: str = ''
 
   @property
+  def custom_metadata(self) -> dict[str, Any]:
+    """Returns the custom metadata dictionary."""
+    # pylint: disable=protected-access
+    return self._invocation_context._custom_metadata
+
+  @property
   def function_call_id(self) -> str | None:
     """The function call id of the current tool call."""
     return self._function_call_id
