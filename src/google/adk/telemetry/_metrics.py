@@ -191,6 +191,7 @@ def record_agent_workflow_steps(agent_name: str, events: list[Event]):
 
 def record_tool_execution_duration(
     tool_name: str,
+    tool_type: str,
     agent_name: str,
     elapsed_s: float,
     error: Exception | None = None,
@@ -199,6 +200,7 @@ def record_tool_execution_duration(
   attrs = {
       gen_ai_attributes.GEN_AI_AGENT_NAME: agent_name,
       gen_ai_attributes.GEN_AI_TOOL_NAME: tool_name,
+      gen_ai_attributes.GEN_AI_TOOL_TYPE: tool_type,
   }
   if error is not None:
     attrs[error_attributes.ERROR_TYPE] = type(error).__name__
