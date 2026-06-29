@@ -42,14 +42,18 @@ from .functional_test_helpers import GEN_AI_COMPLETION_DETAILS_EVENT
 from .functional_test_helpers import GEN_AI_SYSTEM_MESSAGE_EVENT
 from .functional_test_helpers import GEN_AI_USER_MESSAGE_EVENT
 from .functional_test_helpers import LogDigest
+from .functional_test_helpers import MetricPoint
 from .functional_test_helpers import NODE_NAME
 from .functional_test_helpers import NODE_RESULT
+from .functional_test_helpers import NON_DETERMINISTIC
 from .functional_test_helpers import PRESENT
 from .functional_test_helpers import SpanDigest
+from .functional_test_helpers import TelemetryDigest
 from .functional_test_helpers import TOOL_ARGS
 from .functional_test_helpers import TOOL_DESCRIPTION
 from .functional_test_helpers import TOOL_NAME
 from .functional_test_helpers import TOOL_RESULT
+from .functional_test_helpers import USER_PROMPT
 from .functional_test_helpers import WORKFLOW_NAME
 
 # The agent's "user" input in this scenario is the node's output, since
@@ -1503,6 +1507,54 @@ EXPECTED_EXPERIMENTAL_SPAN_AND_EVENT = SpanDigest(
 )
 
 
+# Expected metric points, grouped by metric name.
+EXPECTED_NODE_METRICS: dict[str, frozenset[MetricPoint]] = {
+    "gen_ai.agent.invocation.duration": frozenset({
+        MetricPoint(
+            attributes={"gen_ai.agent.name": AGENT_NAME},
+            value=NON_DETERMINISTIC,
+        ),
+    }),
+    "gen_ai.tool.execution.duration": frozenset({
+        MetricPoint(
+            attributes={
+                "gen_ai.agent.name": AGENT_NAME,
+                "gen_ai.tool.name": TOOL_NAME,
+                "gen_ai.tool.type": "FunctionTool",
+            },
+            value=NON_DETERMINISTIC,
+        ),
+    }),
+    "gen_ai.agent.request.size": frozenset({
+        MetricPoint(
+            attributes={"gen_ai.agent.name": AGENT_NAME},
+            value=len(USER_PROMPT),
+        ),
+    }),
+    "gen_ai.agent.response.size": frozenset({
+        MetricPoint(
+            attributes={"gen_ai.agent.name": AGENT_NAME},
+            value=len(FINAL_TEXT),
+        ),
+    }),
+    "gen_ai.agent.workflow.steps": frozenset({
+        MetricPoint(attributes={"gen_ai.agent.name": AGENT_NAME}, value=3),
+    }),
+    "gen_ai.client.operation.duration": frozenset({
+        MetricPoint(
+            attributes={
+                "gen_ai.agent.name": AGENT_NAME,
+                "gen_ai.operation.name": "generate_content",
+                "gen_ai.provider.name": "gemini",
+                "gen_ai.request.model": "mock",
+                "gen_ai.response.model": "mock",
+            },
+            value=NON_DETERMINISTIC,
+        ),
+    }),
+}
+
+
 # ---------------------------------------------------------------------------
 # Parametrization list.
 # ---------------------------------------------------------------------------
@@ -1512,36 +1564,54 @@ ALL_NODE_CASES: list[FunctionalTestCase] = [
         test_id="stable-no-capture",
         semconv_opt_in=None,
         capture_content="false",
-        expected_root=EXPECTED_STABLE_NO_CAPTURE,
+        expected=TelemetryDigest(
+            root_span=EXPECTED_STABLE_NO_CAPTURE,
+            metric_points=EXPECTED_NODE_METRICS,
+        ),
     ),
     FunctionalTestCase(
         test_id="stable-capture",
         semconv_opt_in=None,
         capture_content="true",
-        expected_root=EXPECTED_STABLE_CAPTURE,
+        expected=TelemetryDigest(
+            root_span=EXPECTED_STABLE_CAPTURE,
+            metric_points=EXPECTED_NODE_METRICS,
+        ),
     ),
     FunctionalTestCase(
         test_id="experimental-no-content",
         semconv_opt_in=EXPERIMENTAL_OPT_IN,
         capture_content="no_content",
-        expected_root=EXPECTED_EXPERIMENTAL_NO_CONTENT,
+        expected=TelemetryDigest(
+            root_span=EXPECTED_EXPERIMENTAL_NO_CONTENT,
+            metric_points=EXPECTED_NODE_METRICS,
+        ),
     ),
     FunctionalTestCase(
         test_id="experimental-span-only",
         semconv_opt_in=EXPERIMENTAL_OPT_IN,
         capture_content="span_only",
-        expected_root=EXPECTED_EXPERIMENTAL_SPAN_ONLY,
+        expected=TelemetryDigest(
+            root_span=EXPECTED_EXPERIMENTAL_SPAN_ONLY,
+            metric_points=EXPECTED_NODE_METRICS,
+        ),
     ),
     FunctionalTestCase(
         test_id="experimental-event-only",
         semconv_opt_in=EXPERIMENTAL_OPT_IN,
         capture_content="event_only",
-        expected_root=EXPECTED_EXPERIMENTAL_EVENT_ONLY,
+        expected=TelemetryDigest(
+            root_span=EXPECTED_EXPERIMENTAL_EVENT_ONLY,
+            metric_points=EXPECTED_NODE_METRICS,
+        ),
     ),
     FunctionalTestCase(
         test_id="experimental-span-and-event",
         semconv_opt_in=EXPERIMENTAL_OPT_IN,
         capture_content="span_and_event",
-        expected_root=EXPECTED_EXPERIMENTAL_SPAN_AND_EVENT,
+        expected=TelemetryDigest(
+            root_span=EXPECTED_EXPERIMENTAL_SPAN_AND_EVENT,
+            metric_points=EXPECTED_NODE_METRICS,
+        ),
     ),
 ]
