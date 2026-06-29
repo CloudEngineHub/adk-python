@@ -42,6 +42,7 @@ import inspect
 import json
 import sys
 from types import CodeType
+from typing import Literal
 from typing import NamedTuple
 from typing import TYPE_CHECKING
 
@@ -86,6 +87,7 @@ from ..testing_utils import TestInMemoryRunner
 OTEL_OPT_IN = "OTEL_SEMCONV_STABILITY_OPT_IN"
 CAPTURE_CONTENT = "OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT"
 EXPERIMENTAL_OPT_IN = "gen_ai_latest_experimental"
+ADK_TELEMETRY_SCHEMA_VERSION_OPT_IN = "ADK_TELEMETRY_SCHEMA_VERSION_OPT_IN"
 
 # Stable semconv event names.
 GEN_AI_SYSTEM_MESSAGE_EVENT = "gen_ai.system.message"
@@ -604,11 +606,12 @@ async def run_agent_scenario(runner: TestInMemoryRunner) -> None:
 
 @dataclass(frozen=True)
 class FunctionalTestCase:
-  """One row of the (semconv, capture-content) parametrization matrix."""
+  """One row of the (semconv, capture-content, schema-version) matrix."""
 
   test_id: str
   semconv_opt_in: str | None
   capture_content: str | None
+  schema_version: Literal[1, 2]
   expected: TelemetryDigest
 
   def apply_env(self, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -625,6 +628,9 @@ class FunctionalTestCase:
       monkeypatch.delenv(CAPTURE_CONTENT, raising=False)
     else:
       monkeypatch.setenv(CAPTURE_CONTENT, self.capture_content)
+    monkeypatch.setenv(
+        ADK_TELEMETRY_SCHEMA_VERSION_OPT_IN, str(self.schema_version)
+    )
     monkeypatch.setenv("ADK_CAPTURE_MESSAGE_CONTENT_IN_SPANS", "false")
 
 
