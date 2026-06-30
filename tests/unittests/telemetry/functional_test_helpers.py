@@ -339,6 +339,16 @@ _PATCHED_HISTOGRAMS: tuple[HistogramSpec, ...] = (
         attr="_client_token_usage",
         metric_name="gen_ai.client.token.usage",
     ),
+    HistogramSpec(
+        module=_metrics,
+        attr="_invoke_agent_inference_calls",
+        metric_name="gen_ai.invoke_agent.inference_calls",
+    ),
+    HistogramSpec(
+        module=_metrics,
+        attr="_invoke_agent_tool_calls",
+        metric_name="gen_ai.invoke_agent.tool_calls",
+    ),
 )
 
 

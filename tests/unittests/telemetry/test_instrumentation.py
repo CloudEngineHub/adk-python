@@ -15,6 +15,7 @@
 # pylint: disable=protected-access
 
 import time
+import types
 from unittest import mock
 
 from google.adk.telemetry import _instrumentation
@@ -94,8 +95,8 @@ async def test_record_agent_invocation_tolerates_minimal_context():
   """
   agent = mock.MagicMock()
   agent.name = "test_agent"
-  # Bare object without `user_content` and without `session`.
-  bare_ctx = object()
+  # Context-like without `user_content` and without `session`.
+  bare_ctx = types.SimpleNamespace()
 
   with (
       mock.patch.object(
