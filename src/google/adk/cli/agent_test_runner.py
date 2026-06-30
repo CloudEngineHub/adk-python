@@ -257,7 +257,7 @@ def _make_nodes_sequential(obj, visited=None):
       for node in obj.graph.nodes:
         _make_nodes_sequential(node, visited)
   elif isinstance(obj, _ParallelWorker):
-    obj.max_concurrency = 1
+    obj.max_parallel_workers = 1
     if hasattr(obj, "_node"):
       _make_nodes_sequential(obj._node, visited)
 
