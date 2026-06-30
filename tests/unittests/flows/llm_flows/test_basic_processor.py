@@ -294,3 +294,82 @@ class TestBasicLlmRequestProcessor:
       pass
 
     assert llm_request.live_connect_config.translation_config is None
+
+  @pytest.mark.asyncio
+  async def test_preserves_merged_http_options(self):
+    """Test that processor preserves and merges existing http_options."""
+    agent = LlmAgent(
+        name='test_agent',
+        model='gemini-1.5-flash',
+        generate_content_config=types.GenerateContentConfig(
+            http_options=types.HttpOptions(
+                timeout=1000,
+                headers={'Agent-Header': 'agent-val'},
+            )
+        ),
+    )
+
+    invocation_context = await _create_invocation_context(agent)
+    llm_request = LlmRequest()
+
+    # Simulate http_options propagated from RunConfig.
+    llm_request.config.http_options = types.HttpOptions(
+        timeout=500,  # Should override agent.
+        headers={
+            'RunConfig-Header': 'run-val',
+            'Agent-Header': 'run-val-override',
+        },
+    )
+
+    processor = _BasicLlmRequestProcessor()
+
+    async for _ in processor.run_async(invocation_context, llm_request):
+      pass
+
+    # RunConfig timeout wins.
+    assert llm_request.config.http_options.timeout == 500
+
+    # Headers merged, RunConfig wins on conflict.
+    assert (
+        llm_request.config.http_options.headers['RunConfig-Header'] == 'run-val'
+    )
+    assert (
+        llm_request.config.http_options.headers['Agent-Header']
+        == 'run-val-override'
+    )
+
+  @pytest.mark.asyncio
+  async def test_merges_http_options_without_headers(self):
+    """RunConfig timeout/extra_body merge even when no headers are set."""
+    agent = LlmAgent(
+        name='test_agent',
+        model='gemini-1.5-flash',
+        generate_content_config=types.GenerateContentConfig(
+            http_options=types.HttpOptions(
+                timeout=1000,
+                headers={'Agent-Header': 'agent-val'},
+            )
+        ),
+    )
+
+    invocation_context = await _create_invocation_context(agent)
+    llm_request = LlmRequest()
+
+    # Propagated RunConfig http_options with no headers.
+    llm_request.config.http_options = types.HttpOptions(
+        timeout=500,
+        extra_body={'priority': 'high'},
+    )
+
+    processor = _BasicLlmRequestProcessor()
+
+    async for _ in processor.run_async(invocation_context, llm_request):
+      pass
+
+    # timeout and extra_body still merge despite empty headers.
+    assert llm_request.config.http_options.timeout == 500
+    assert llm_request.config.http_options.extra_body == {'priority': 'high'}
+    # Agent headers are untouched.
+    assert (
+        llm_request.config.http_options.headers['Agent-Header'] == 'agent-val'
+    )

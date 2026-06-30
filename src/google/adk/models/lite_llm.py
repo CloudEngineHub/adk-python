@@ -2475,6 +2475,30 @@ class LiteLlm(BaseLlm):
     if generation_params:
       completion_args.update(generation_params)
 
+    if llm_request.config.http_options:
+      http_opts = llm_request.config.http_options
+      if http_opts.headers:
+        extra_headers = completion_args.get("extra_headers", {})
+        if isinstance(extra_headers, dict):
+          extra_headers = extra_headers.copy()
+        else:
+          extra_headers = {}
+        extra_headers.update(http_opts.headers)
+        completion_args["extra_headers"] = extra_headers
+
+      if http_opts.timeout is not None:
+        completion_args["timeout"] = http_opts.timeout
+
+      if (
+          http_opts.retry_options is not None
+          and http_opts.retry_options.attempts is not None
+      ):
+        # LiteLLM accepts num_retries as a top-level parameter.
+        completion_args["num_retries"] = http_opts.retry_options.attempts
+
+      if http_opts.extra_body is not None:
+        completion_args["extra_body"] = http_opts.extra_body
+
     if stream:
       text = ""
       reasoning_parts: List[types.Part] = []
