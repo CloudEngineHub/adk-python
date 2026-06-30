@@ -152,5 +152,3 @@ jobs:
             -n auto \
             --ignore=tests/unittests/artifacts/test_artifact_service.py \
             --ignore=tests/unittests/tools/google_api_tool/test_googleapi_to_openapi_converter.py
-
-
