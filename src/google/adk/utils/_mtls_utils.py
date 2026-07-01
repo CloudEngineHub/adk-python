@@ -19,6 +19,8 @@ from __future__ import annotations
 import enum
 import logging
 import os
+import tempfile
+import threading
 from typing import TYPE_CHECKING
 from urllib.parse import urlsplit
 from urllib.parse import urlunsplit
@@ -149,3 +151,69 @@ def configure_session_for_mtls(session: requests.Session) -> bool:
   if is_mtls:
     session.mount("https://", _MutualTlsAdapter(cert, key))
   return bool(is_mtls)
+
+
+class MtlsClientCerts:
+  """Manages the creation and lifecycle of client certificates for mTLS.
+
+  Extracts certificates to a temporary directory that is automatically cleaned up
+  when the instance is garbage collected.
+  """
+
+  def __init__(self) -> None:
+    self._tempdir: tempfile.TemporaryDirectory[str] | None = None
+    self.cert_path: str | None = None
+    self.key_path: str | None = None
+    self.passphrase: bytes | None = None
+    self._lock = threading.Lock()
+    self._initialized = False
+
+  def get_certs(self) -> tuple[str | None, str | None, bytes | None]:
+    """Extracts and returns the certificate paths and passphrase.
+
+    Returns:
+        A tuple of (cert_path, key_path, passphrase) if client certificates
+        are available, otherwise (None, None, None).
+    """
+    with self._lock:
+      if self._initialized:
+        return self.cert_path, self.key_path, self.passphrase
+
+      if not mtls.has_default_client_cert_source():
+        self._initialized = True
+        return None, None, None
+
+      self._tempdir = tempfile.TemporaryDirectory()
+      cert_path_tmp = os.path.join(self._tempdir.name, "cert.pem")
+      key_path_tmp = os.path.join(self._tempdir.name, "key.pem")
+
+      try:
+        cert_source = mtls.default_client_encrypted_cert_source(
+            cert_path_tmp, key_path_tmp
+        )
+        _, _, passphrase = cert_source()
+      except Exception as e:
+        # If extraction fails, we should fail loud.
+        self._tempdir.cleanup()
+        self._tempdir = None
+        raise RuntimeError(
+            f"Failed to extract default client certificates for mTLS: {e}"
+        ) from e
+
+      self.cert_path = cert_path_tmp
+      self.key_path = key_path_tmp
+      self.passphrase = passphrase
+      self._initialized = True
+
+      return self.cert_path, self.key_path, self.passphrase
+
+  def close(self) -> None:
+    """Manually cleans up the temporary directory."""
+    with self._lock:
+      if self._tempdir:
+        self._tempdir.cleanup()
+        self._tempdir = None
+      self.cert_path = None
+      self.key_path = None
+      self.passphrase = None
+      self._initialized = False
