@@ -27,11 +27,11 @@ import opentelemetry.context as context_api
 
 from . import _metrics
 from . import tracing
+from ..events import event as event_lib
 
 if TYPE_CHECKING:
   from ..agents.base_agent import BaseAgent
   from ..agents.invocation_context import InvocationContext
-  from ..events import event as event_lib
   from ..models.llm_request import LlmRequest
   from ..models.llm_response import LlmResponse
   from ..tools.base_tool import BaseTool
@@ -78,30 +78,10 @@ class TelemetryContext:
   error_type: str | None = None
   span: tracing.GenerateContentSpan | trace.Span | None = None
   _llm_responses: list[LlmResponse] = dataclasses.field(default_factory=list)
-  _inference_call_count: int = 0
-  _tool_call_count: int = 0
 
   @property
   def llm_responses(self) -> list[LlmResponse]:
     return self._llm_responses
-
-  @property
-  def inference_call_count(self) -> int:
-    """Number of model calls counted against this invoke_agent span."""
-    return self._inference_call_count
-
-  def increment_inference_calls(self) -> None:
-    """Counts one model call against this span (including calls that raised)."""
-    self._inference_call_count += 1
-
-  def increment_tool_calls(self) -> None:
-    """Counts one tool call against this invoke_agent span."""
-    self._tool_call_count += 1
-
-  @property
-  def tool_call_count(self) -> int:
-    """Number of tool calls counted against this invoke_agent span."""
-    return self._tool_call_count
 
   def record_llm_response(
       self, invocation_context: InvocationContext, response: LlmResponse
@@ -130,30 +110,6 @@ def _record_agent_metrics(
     logger.exception("Failed to record agent metrics for agent %s", agent_name)
 
 
-def _flush_invoke_agent_metrics(
-    tel_ctx: TelemetryContext, agent_name: str
-) -> None:
-  """Flushes this span's accumulated inference/tool-call metrics."""
-  _metrics.record_invoke_agent_inference_calls(
-      agent_name, tel_ctx.inference_call_count
-  )
-  _metrics.record_invoke_agent_tool_calls(agent_name, tel_ctx.tool_call_count)
-
-
-def _accumulate_invoke_agent_tool_call(ctx: InvocationContext) -> None:
-  """Counts one tool call against the active invoke_agent span."""
-  span_tel_ctx = ctx._invoke_agent_telemetry_context  # pylint: disable=protected-access
-  if span_tel_ctx is not None:
-    span_tel_ctx.increment_tool_calls()
-
-
-def _accumulate_invoke_agent_inference_call(ctx: InvocationContext) -> None:
-  """Counts one model call against the active invoke_agent span."""
-  span_tel_ctx = ctx._invoke_agent_telemetry_context  # pylint: disable=protected-access
-  if span_tel_ctx is not None:
-    span_tel_ctx.increment_inference_calls()
-
-
 @contextlib.asynccontextmanager
 async def record_agent_invocation(
     ctx: InvocationContext, agent: BaseAgent
@@ -163,13 +119,11 @@ async def record_agent_invocation(
   caught_error: Exception | None = None
   span: trace.Span | None = None
   span_name = f"invoke_agent {agent.name}"
-  tel_ctx = TelemetryContext()
   try:
     with tracing.tracer.start_as_current_span(span_name) as s:
       span = s
       tracing.trace_agent_invocation(span, agent, ctx)
-      tel_ctx.otel_context = context_api.get_current()
-      ctx._invoke_agent_telemetry_context = tel_ctx  # pylint: disable=protected-access
+      tel_ctx = TelemetryContext(otel_context=context_api.get_current())
       yield tel_ctx
   except Exception as e:
     caught_error = e
@@ -182,7 +136,6 @@ async def record_agent_invocation(
         getattr(getattr(ctx, "session", None), "events", []),
         caught_error,
     )
-    _flush_invoke_agent_metrics(tel_ctx, agent.name)
 
 
 @contextlib.asynccontextmanager
@@ -190,7 +143,7 @@ async def record_tool_execution(
     tool: BaseTool,
     agent: BaseAgent,
     function_args: dict[str, object],
-    invocation_context: InvocationContext,
+    invocation_context: InvocationContext | None = None,
 ) -> AsyncIterator[TelemetryContext]:
   """Unified context manager for consolidated tool execution telemetry."""
   start_time = time.monotonic()
@@ -218,7 +171,6 @@ async def record_tool_execution(
             invocation_context=invocation_context,
             error_type=tel_ctx.error_type,
         )
-        _accumulate_invoke_agent_tool_call(invocation_context)
   finally:
     try:
       _metrics.record_tool_execution_duration(
@@ -253,7 +205,6 @@ async def record_inference_telemetry(
       yield tel_ctx
   finally:
     inference_error = sys.exc_info()[1]
-    _accumulate_invoke_agent_inference_call(invocation_context)
     agent = invocation_context.agent
     elapsed_s = _get_elapsed_s(tel_ctx.span, start_time)
     try:

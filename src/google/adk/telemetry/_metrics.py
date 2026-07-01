@@ -146,44 +146,6 @@ _client_operation_duration = (
     gen_ai_metrics.create_gen_ai_client_operation_duration(meter)
 )
 _client_token_usage = gen_ai_metrics.create_gen_ai_client_token_usage(meter)
-_invoke_agent_inference_calls = meter.create_histogram(
-    "gen_ai.invoke_agent.inference_calls",
-    unit="1",
-    description="Number of inference (model) calls per agent invocation.",
-    explicit_bucket_boundaries_advisory=[
-        1,
-        2,
-        3,
-        4,
-        5,
-        6,
-        8,
-        12,
-        16,
-        24,
-        32,
-        64,
-    ],
-)
-_invoke_agent_tool_calls = meter.create_histogram(
-    "gen_ai.invoke_agent.tool_calls",
-    unit="1",
-    description="Number of tool calls per agent invocation.",
-    explicit_bucket_boundaries_advisory=[
-        1,
-        2,
-        3,
-        4,
-        5,
-        6,
-        8,
-        12,
-        16,
-        24,
-        32,
-        64,
-    ],
-)
 
 
 def record_agent_invocation_duration(
@@ -196,18 +158,6 @@ def record_agent_invocation_duration(
   if error is not None:
     attrs[error_attributes.ERROR_TYPE] = type(error).__name__
   _agent_invocation_duration.record(elapsed_s, attributes=attrs)
-
-
-def record_invoke_agent_inference_calls(agent_name: str, count: int):
-  """Records the number of inference (model) calls in an agent invocation."""
-  attrs = {gen_ai_attributes.GEN_AI_AGENT_NAME: agent_name}
-  _invoke_agent_inference_calls.record(count, attributes=attrs)
-
-
-def record_invoke_agent_tool_calls(agent_name: str, count: int):
-  """Records the number of tool calls in an agent invocation."""
-  attrs = {gen_ai_attributes.GEN_AI_AGENT_NAME: agent_name}
-  _invoke_agent_tool_calls.record(count, attributes=attrs)
 
 
 def record_agent_request_size(

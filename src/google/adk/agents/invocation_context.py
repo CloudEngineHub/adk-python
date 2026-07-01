@@ -18,7 +18,6 @@ import asyncio
 from typing import Any
 from typing import cast
 from typing import Optional
-from typing import TYPE_CHECKING
 
 from google.adk.platform import uuid as platform_uuid
 from google.genai import types
@@ -47,9 +46,6 @@ from .context_cache_config import ContextCacheConfig
 from .live_request_queue import LiveRequestQueue
 from .run_config import RunConfig
 from .transcription_entry import TranscriptionEntry
-
-if TYPE_CHECKING:
-  from google.adk.telemetry._instrumentation import TelemetryContext
 
 
 class LlmCallsLimitExceededError(Exception):
@@ -272,12 +268,6 @@ class InvocationContext(BaseModel):
   )
   """A container to keep track of different kinds of costs incurred as a part
   of this invocation.
-  """
-
-  _invoke_agent_telemetry_context: Optional[TelemetryContext] = PrivateAttr(
-      default=None
-  )
-  """TelemetryContext of the active ``invoke_agent`` span, if any.
   """
 
   @property
