@@ -45,11 +45,11 @@ def _mock_meter_setup(monkeypatch):
   client_token_usage_hist.name = "client_token_usage"
 
   def create_histogram_side_effect(name, **_kwargs):
-    if name == "gen_ai.agent.invocation.duration":
+    if name == "gen_ai.invoke_agent.duration":
       return agent_duration_hist
     elif name == "gen_ai.invoke_workflow.duration":
       return workflow_duration_hist
-    elif name == "gen_ai.tool.execution.duration":
+    elif name == "gen_ai.execute_tool.duration":
       return tool_duration_hist
     elif name == "gen_ai.agent.request.size":
       return request_size_hist

@@ -2581,13 +2581,13 @@ EXPECTED_EXPERIMENTAL_SPAN_AND_EVENT_V2 = SpanDigest(
 
 # Expected metric points, grouped by metric name.
 EXPECTED_NODE_METRICS_V1: dict[str, frozenset[MetricPoint]] = {
-    "gen_ai.agent.invocation.duration": frozenset({
+    "gen_ai.invoke_agent.duration": frozenset({
         MetricPoint(
             attributes={"gen_ai.agent.name": AGENT_NAME},
             value=NON_DETERMINISTIC,
         ),
     }),
-    "gen_ai.tool.execution.duration": frozenset({
+    "gen_ai.execute_tool.duration": frozenset({
         MetricPoint(
             attributes={
                 "gen_ai.agent.name": AGENT_NAME,
@@ -2637,13 +2637,13 @@ EXPECTED_NODE_METRICS_V1: dict[str, frozenset[MetricPoint]] = {
 
 
 EXPECTED_NODE_METRICS_V2: dict[str, frozenset[MetricPoint]] = {
-    "gen_ai.agent.invocation.duration": frozenset({
+    "gen_ai.invoke_agent.duration": frozenset({
         MetricPoint(
             attributes={"gen_ai.agent.name": AGENT_NAME},
             value=NON_DETERMINISTIC,
         ),
     }),
-    "gen_ai.tool.execution.duration": frozenset({
+    "gen_ai.execute_tool.duration": frozenset({
         MetricPoint(
             attributes={
                 "gen_ai.agent.name": AGENT_NAME,

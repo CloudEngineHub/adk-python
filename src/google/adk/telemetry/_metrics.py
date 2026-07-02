@@ -47,7 +47,7 @@ meter = metrics.get_meter(
 )
 
 _agent_invocation_duration = meter.create_histogram(
-    "gen_ai.agent.invocation.duration",
+    "gen_ai.invoke_agent.duration",
     unit="s",
     description="Duration of agent invocations.",
     explicit_bucket_boundaries_advisory=[
@@ -72,7 +72,7 @@ _workflow_invocation_duration = meter.create_histogram(
     description="Duration of workflow invocations.",
 )
 _tool_execution_duration = meter.create_histogram(
-    "gen_ai.tool.execution.duration",
+    "gen_ai.execute_tool.duration",
     unit="s",
     description="Duration of tool executions.",
     explicit_bucket_boundaries_advisory=[
