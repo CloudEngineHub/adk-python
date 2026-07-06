@@ -37,6 +37,8 @@ jobs:
     steps:
     - name: Checkout repository
       uses: actions/checkout@v6
+      with:
+        token: ${{ secrets.RELEASE_PAT }}
 
     - name: Fetch and unzip frontend assets
       run: |
