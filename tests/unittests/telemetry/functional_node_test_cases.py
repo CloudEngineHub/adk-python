@@ -2742,9 +2742,6 @@ EXPECTED_NODE_METRICS_V1: dict[str, frozenset[MetricPoint]] = {
             value=NON_DETERMINISTIC,
         ),
     }),
-    "gen_ai.agent.workflow.steps": frozenset({
-        MetricPoint(attributes={"gen_ai.agent.name": AGENT_NAME}, value=3),
-    }),
     "gen_ai.client.operation.duration": frozenset({
         MetricPoint(
             attributes={
@@ -2801,9 +2798,6 @@ EXPECTED_NODE_METRICS_V2: dict[str, frozenset[MetricPoint]] = {
             },
             value=NON_DETERMINISTIC,
         ),
-    }),
-    "gen_ai.agent.workflow.steps": frozenset({
-        MetricPoint(attributes={"gen_ai.agent.name": AGENT_NAME}, value=3),
     }),
     "gen_ai.client.operation.duration": frozenset({
         MetricPoint(
