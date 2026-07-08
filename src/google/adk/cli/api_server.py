@@ -1706,6 +1706,7 @@ class ApiServer:
         enable_affective_dialog: bool | None = Query(default=None),
         enable_session_resumption: bool | None = Query(default=None),
         save_live_blob: bool = Query(default=False),
+        explicit_vad_signal: bool | None = Query(default=None),
     ) -> None:
       resolved_app_name = app_name or self.default_app_name
       if not resolved_app_name:
@@ -1762,6 +1763,7 @@ class ApiServer:
                 else None
             ),
             save_live_blob=save_live_blob,
+            explicit_vad_signal=explicit_vad_signal,
         )
         async with Aclosing(
             runner.run_live(
