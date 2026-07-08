@@ -539,6 +539,96 @@ def _process_compaction_events(events: list[Event]) -> list[Event]:
   return [event for _, _, event in processed_items]
 
 
+def _recover_compacted_function_calls(
+    events: list[Event],
+    source_events: list[Event],
+) -> list[Event]:
+  """Re-injects function-call events that compaction removed.
+
+  Compaction can summarize away a function_call while a matching
+  function_response survives outside the compacted range. The clearest case
+  is a long-running tool call: the call is compacted along with its
+  intermediate placeholder response, then the real result arrives on resume
+  (a later event not covered by the summary). That surviving response would
+  be orphaned, which breaks call/response pairing during prompt assembly (it
+  raises in `_rearrange_events_for_latest_function_response`).
+
+  For each response whose call is no longer present, this restores the
+  original call event from `source_events` (the pre-compaction list),
+  inserting it immediately before the first surviving response that
+  references it. The whole call event is re-injected verbatim (rather than
+  trimmed to the resumed call) so parallel-call thought signatures, which only
+  the first part carries, are preserved. Any sibling responses that compaction
+  removed are re-injected too, so a sibling is not surfaced as a phantom
+  pending call.
+
+  Args:
+    events: The post-compaction events being assembled into request contents.
+    source_events: The pre-compaction events to recover missing calls from.
+
+  Returns:
+    `events` with any recoverable missing function-call events (and their
+    compacted sibling responses) re-injected; the original list is returned
+    unchanged when nothing needs recovery.
+  """
+  call_ids_present: set[str] = set()
+  response_ids_present: set[str] = set()
+  for event in events:
+    for function_call in event.get_function_calls():
+      if function_call.id:
+        call_ids_present.add(function_call.id)
+    for function_response in event.get_function_responses():
+      if function_response.id:
+        response_ids_present.add(function_response.id)
+
+  orphaned_ids = {
+      response_id
+      for response_id in response_ids_present
+      if response_id not in call_ids_present
+  }
+  if not orphaned_ids:
+    return events
+
+  call_event_by_id: dict[str, Event] = {}
+  for event in source_events:
+    for function_call in event.get_function_calls():
+      if function_call.id in orphaned_ids:
+        call_event_by_id.setdefault(function_call.id, event)
+
+  if not call_event_by_id:
+    return events
+
+  response_event_by_id: dict[str, Event] = {}
+  for event in source_events:
+    for function_response in event.get_function_responses():
+      if function_response.id:
+        response_event_by_id.setdefault(function_response.id, event)
+
+  result: list[Event] = []
+  reinjected_ids: set[str] = set()
+  for event in events:
+    for function_response in event.get_function_responses():
+      call_event = call_event_by_id.get(function_response.id)
+      if call_event is None or function_response.id in reinjected_ids:
+        continue
+      result.append(call_event)
+      sibling_ids = [
+          function_call.id
+          for function_call in call_event.get_function_calls()
+          if function_call.id
+      ]
+      reinjected_ids.update(sibling_ids)
+      # Recover sibling responses that compaction removed so a parallel sibling
+      # is not left looking like a pending call.
+      for sibling_id in sibling_ids:
+        if sibling_id not in response_ids_present:
+          sibling_response = response_event_by_id.get(sibling_id)
+          if sibling_response is not None:
+            result.append(sibling_response)
+    result.append(event)
+  return result
+
+
 def _copy_content_for_request(
     content: types.Content,
     *,
@@ -660,6 +750,12 @@ def _get_contents(
 
   if has_compaction_events:
     events_to_process = _process_compaction_events(raw_filtered_events)
+    # Compaction may have removed a function_call whose response survives
+    # (e.g. a long-running call resumed after it was compacted); restore it so
+    # the call/response pairing is intact.
+    events_to_process = _recover_compacted_function_calls(
+        events_to_process, raw_filtered_events
+    )
   else:
     events_to_process = raw_filtered_events
 
