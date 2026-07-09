@@ -16,7 +16,6 @@ from __future__ import annotations
 
 import asyncio
 from typing import Any
-from typing import cast
 from typing import Optional
 
 from google.adk.platform import uuid as platform_uuid
@@ -84,7 +83,7 @@ class _InvocationCostManager(BaseModel):
 
   def increment_and_enforce_llm_calls_limit(
       self, run_config: Optional[RunConfig]
-  ):
+  ) -> None:
     """Increments _number_of_llm_calls and enforces the limit."""
     # We first increment the counter and then check the conditions.
     self._number_of_llm_calls += 1
@@ -389,7 +388,7 @@ class InvocationContext(BaseModel):
 
   def increment_llm_call_count(
       self,
-  ):
+  ) -> None:
     """Tracks number of llm calls made.
 
     Raises:
@@ -525,4 +524,4 @@ class InvocationContext(BaseModel):
 
 
 def new_invocation_context_id() -> str:
-  return "e-" + cast(str, platform_uuid.new_uuid())
+  return "e-" + platform_uuid.new_uuid()
