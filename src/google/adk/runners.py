@@ -725,6 +725,8 @@ class Runner:
       state_delta: Optional[dict[str, Any]] = None,
   ) -> Event:
     """Append a user message event to the session and return it."""
+    if content.parts and any(p.function_call for p in content.parts):
+      raise ValueError('User message cannot contain function calls.')
     if state_delta:
       event = Event(
           invocation_id=ic.invocation_id,
@@ -1454,6 +1456,9 @@ class Runner:
     """
     if not new_message.parts:
       raise ValueError('No parts in the new_message.')
+
+    if any(p.function_call for p in new_message.parts):
+      raise ValueError('User message cannot contain function calls.')
 
     if self.artifact_service and save_input_blobs_as_artifacts:
       # Issue deprecation warning
