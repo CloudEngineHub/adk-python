@@ -72,6 +72,28 @@ logger = logging.getLogger('google_adk.' + __name__)
 _ = tracer
 
 
+async def _notify_run_error(
+    plugin_manager: PluginManager,
+    invocation_context: InvocationContext,
+    error: Exception,
+) -> None:
+  """Best-effort on_run_error notification; never masks the original error.
+
+  on_run_error_callback is notification-only: the triggering exception is
+  always re-raised by the caller, so any exception from the callback itself
+  (or from a test double that does not implement it) is logged and suppressed.
+  """
+  try:
+    await plugin_manager.run_on_run_error_callback(
+        invocation_context=invocation_context, error=error
+    )
+  except Exception:  # pylint: disable=broad-except
+    logger.exception(
+        'on_run_error_callback raised; suppressing so the original run error'
+        ' propagates.'
+    )
+
+
 def _find_active_task_scope(session) -> Optional[tuple[str, str]]:
   """Walk session backwards; find the active paused task agent's scope.
 
@@ -535,9 +557,7 @@ class Runner:
         # Run before_run callbacks
         await ic.plugin_manager.run_before_run_callback(invocation_context=ic)
       except Exception as e:
-        await ic.plugin_manager.run_on_run_error_callback(
-            invocation_context=ic, error=e
-        )
+        await _notify_run_error(ic.plugin_manager, ic, e)
         raise
 
       # 3. Start root node in background
@@ -601,9 +621,7 @@ class Runner:
         # An unhandled exception escaped runner execution. Notify plugins
         # (notification-only) and re-raise. after_run stays success-only.
         run_error = e
-        await ic.plugin_manager.run_on_run_error_callback(
-            invocation_context=ic, error=e
-        )
+        await _notify_run_error(ic.plugin_manager, ic, e)
         raise
       finally:
         # Success path (also caller early-stop via GeneratorExit, which is not
@@ -636,9 +654,7 @@ class Runner:
                       session=session, event=compaction_event
                   )
           except Exception as e:
-            await ic.plugin_manager.run_on_run_error_callback(
-                invocation_context=ic, error=e
-            )
+            await _notify_run_error(ic.plugin_manager, ic, e)
             raise
 
   async def _run_node_live(
@@ -699,9 +715,7 @@ class Runner:
     except Exception as e:
       # An unhandled exception escaped live runner execution. Notify plugins
       # (notification-only) and re-raise.
-      await ic.plugin_manager.run_on_run_error_callback(
-          invocation_context=ic, error=e
-      )
+      await _notify_run_error(ic.plugin_manager, ic, e)
       raise
 
   def _extract_resume_inputs(
@@ -1485,10 +1499,7 @@ class Runner:
       # Notify plugins of the unhandled execution error. Covers failures in
       # before_run_callback, early-exit, and the main execution loop.
       # Notification-only; the original exception is always re-raised.
-      await plugin_manager.run_on_run_error_callback(
-          invocation_context=invocation_context,
-          error=e,
-      )
+      await _notify_run_error(plugin_manager, invocation_context, e)
       raise
 
     # Step 4: Run the after_run callbacks to perform global cleanup tasks or
@@ -1503,10 +1514,7 @@ class Runner:
           invocation_context=invocation_context
       )
     except Exception as e:
-      await plugin_manager.run_on_run_error_callback(
-          invocation_context=invocation_context,
-          error=e,
-      )
+      await _notify_run_error(plugin_manager, invocation_context, e)
       raise
 
   async def _append_new_message_to_session(
