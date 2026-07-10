@@ -44,6 +44,7 @@ from ..telemetry import tracer
 from ..tools._remote_mcp_server import RemoteMcpServer
 from ..tools.base_tool import BaseTool
 from ..tools.tool_context import ToolContext
+from ..utils._google_client_headers import get_tracking_http_options
 from ..utils.context_utils import Aclosing
 from ..utils.env_utils import is_enterprise_mode_enabled
 from .base_agent import BaseAgent
@@ -171,10 +172,15 @@ class ManagedAgent(BaseAgent):
 
       if is_enterprise_mode_enabled():
         self._api_client = Client(
-            enterprise=True, location=_MANAGED_AGENT_LOCATION
+            enterprise=True,
+            location=_MANAGED_AGENT_LOCATION,
+            http_options=get_tracking_http_options(),
         )
       else:
-        self._api_client = Client(enterprise=False)
+        self._api_client = Client(
+            enterprise=False,
+            http_options=get_tracking_http_options(),
+        )
     return self._api_client
 
   async def _resolve_backend_tools(

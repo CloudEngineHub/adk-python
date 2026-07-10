@@ -68,7 +68,17 @@ def test_construction_sets_fields_and_injectable_client():
   assert agent.api_client is client
 
 
+def test_injected_client_is_not_tagged():
+  client = _FakeClient()
+  agent = ManagedAgent(name='mgr', agent_id='agents/a', api_client=client)
+
+  # ADK must not attach http_options/headers onto a caller-supplied client.
+  assert agent.api_client is client
+  assert not hasattr(client, 'http_options')
+
+
 def test_lazy_client_enterprise_uses_global_location(monkeypatch):
+  from google.adk.utils._google_client_headers import get_tracking_headers
   import google.genai as genai
 
   monkeypatch.setenv('GOOGLE_GENAI_USE_ENTERPRISE', '1')
@@ -85,9 +95,11 @@ def test_lazy_client_enterprise_uses_global_location(monkeypatch):
 
   assert captured['enterprise'] is True
   assert captured['location'] == 'global'
+  assert captured['http_options'].headers == get_tracking_headers()
 
 
 def test_lazy_client_dev_api_omits_location(monkeypatch):
+  from google.adk.utils._google_client_headers import get_tracking_headers
   import google.genai as genai
 
   monkeypatch.setenv('GOOGLE_GENAI_USE_ENTERPRISE', '0')
@@ -104,6 +116,7 @@ def test_lazy_client_dev_api_omits_location(monkeypatch):
 
   assert captured['enterprise'] is False
   assert 'location' not in captured
+  assert captured['http_options'].headers == get_tracking_headers()
 
 
 def test_injected_non_global_enterprise_client_raises():
