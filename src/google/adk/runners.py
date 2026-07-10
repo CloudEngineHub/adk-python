@@ -72,7 +72,7 @@ logger = logging.getLogger('google_adk.' + __name__)
 _ = tracer
 
 
-def _find_active_task_isolation_scope(session) -> Optional[str]:
+def _find_active_task_scope(session) -> Optional[tuple[str, str]]:
   """Walk session backwards; find the active paused task agent's scope.
 
   Two flavors of task scope:
@@ -92,6 +92,10 @@ def _find_active_task_isolation_scope(session) -> Optional[str]:
 
   Used by ``Runner._append_user_event`` to scope the new user message
   to that task agent's view.
+
+  Returns:
+    A tuple of (isolation_scope, invocation_id) for the active task if found,
+    or None if no active task scope is found.
   """
   finished_scopes: set[str] = set()
   for event in reversed(session.events):
@@ -107,7 +111,7 @@ def _find_active_task_isolation_scope(session) -> Optional[str]:
             finished_scopes.add(scope)
           break
     if scope not in finished_scopes:
-      return scope
+      return scope, event.invocation_id
   return None
 
 
@@ -475,6 +479,11 @@ class Runner:
         invocation_id = self._resolve_invocation_id_from_fr(
             session, new_message
         )
+        if not invocation_id:
+          active_scope = _find_active_task_scope(session)
+          if active_scope:
+            _, inv_id = active_scope
+            invocation_id = inv_id
 
       ic = self._new_invocation_context(
           session,
@@ -532,7 +541,6 @@ class Runner:
         raise
 
       # 3. Start root node in background
-      from .agents.base_agent import BaseAgent
       from .agents.context import Context
       from .workflow._dynamic_node_scheduler import DynamicNodeScheduler
       from .workflow._errors import DynamicNodeFailError
@@ -796,9 +804,9 @@ class Runner:
     # the new user message with that task's isolation_scope so the
     # task agent's content-build (scoped to <fc_id>) sees it.
     if event.isolation_scope is None:
-      iso = _find_active_task_isolation_scope(ic.session)
-      if iso is not None:
-        event.isolation_scope = iso
+      active_scope = _find_active_task_scope(ic.session)
+      if active_scope is not None:
+        event.isolation_scope, _ = active_scope
     _apply_run_config_custom_metadata(event, ic.run_config)
     ic.stamp_event_branch_context(event)
     return await self.session_service.append_event(
