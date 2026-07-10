@@ -479,6 +479,7 @@ class Runner:
       run_config: Optional[RunConfig] = None,
       yield_user_message: bool = False,
       node: Optional['BaseNode'] = None,
+      session: Optional[Session] = None,
   ) -> AsyncGenerator[Event, None]:
     """Run a BaseNode through NodeRunner.
 
@@ -489,9 +490,12 @@ class Runner:
         entrypoint_node=node or self.agent, conversation_id=session_id
     ):
       # 1. Setup
-      session = await self._get_or_create_session(
-          user_id=user_id, session_id=session_id
-      )
+      if session is None:
+        session = await self._get_or_create_session(
+            user_id=user_id,
+            session_id=session_id,
+            get_session_config=(run_config or RunConfig()).get_session_config,
+        )
 
       # Validate and resolve resume inputs
       resume_inputs = self._extract_resume_inputs(new_message)
@@ -1060,7 +1064,9 @@ class Runner:
 
       if self.agent.mode == 'chat':
         session = await self._get_or_create_session(
-            user_id=user_id, session_id=session_id
+            user_id=user_id,
+            session_id=session_id,
+            get_session_config=run_config.get_session_config,
         )
         # when the chat coordinator has task-mode sub-agents,
         # the wrapper handles delegation via ctx.run_node. Don't let
@@ -1091,6 +1097,7 @@ class Runner:
               run_config=run_config,
               yield_user_message=yield_user_message,
               node=agent_to_run,
+              session=session,
           )
       ) as agen:
         async for event in agen:

@@ -35,6 +35,7 @@ from google.adk.errors.session_not_found_error import SessionNotFoundError
 from google.adk.events.event import Event
 from google.adk.plugins.base_plugin import BasePlugin
 from google.adk.runners import Runner
+from google.adk.sessions.base_session_service import GetSessionConfig
 from google.adk.sessions.in_memory_session_service import InMemorySessionService
 from google.adk.sessions.session import Session
 from google.adk.tools.base_toolset import BaseToolset
@@ -1007,6 +1008,106 @@ async def test_run_config_custom_metadata_stamps_user_event_in_chat_mode():
   )
   user_event = next(event for event in session.events if event.author == "user")
   assert user_event.custom_metadata == {"turn_id": "t-1"}
+
+
+@pytest.mark.asyncio
+async def test_chat_mode_fetches_session_once_per_turn():
+  """Root LlmAgent chat path reuses the prologue fetch inside the node run."""
+  session_service = InMemorySessionService()
+
+  def _before_agent_callback(callback_context) -> types.Content:
+    del callback_context  # Unused; short-circuits the model call.
+    return types.Content(role="model", parts=[types.Part(text="hi back")])
+
+  agent = LlmAgent(
+      name="chat_agent", before_agent_callback=_before_agent_callback
+  )
+  runner = Runner(
+      app_name=TEST_APP_ID, agent=agent, session_service=session_service
+  )
+  original_get_session = session_service.get_session
+  await session_service.create_session(
+      app_name=TEST_APP_ID, user_id=TEST_USER_ID, session_id=TEST_SESSION_ID
+  )
+
+  spy = AsyncMock(wraps=session_service.get_session)
+  session_service.get_session = spy
+
+  async for _ in runner.run_async(
+      user_id=TEST_USER_ID,
+      session_id=TEST_SESSION_ID,
+      new_message=types.Content(role="user", parts=[types.Part(text="hi")]),
+  ):
+    pass
+
+  assert spy.call_count == 1
+
+  # Correctness: the user message is still persisted despite the single fetch.
+  session = await original_get_session(
+      app_name=TEST_APP_ID, user_id=TEST_USER_ID, session_id=TEST_SESSION_ID
+  )
+  assert any(event.author == "user" for event in session.events)
+
+
+@pytest.mark.asyncio
+async def test_chat_mode_honors_get_session_config():
+  """Root LlmAgent chat path threads get_session_config into the fetch."""
+  session_service = InMemorySessionService()
+
+  def _before_agent_callback(callback_context) -> types.Content:
+    del callback_context  # Unused; short-circuits the model call.
+    return types.Content(role="model", parts=[types.Part(text="hi back")])
+
+  agent = LlmAgent(
+      name="chat_agent", before_agent_callback=_before_agent_callback
+  )
+  runner = Runner(
+      app_name=TEST_APP_ID, agent=agent, session_service=session_service
+  )
+  session = await session_service.create_session(
+      app_name=TEST_APP_ID, user_id=TEST_USER_ID, session_id=TEST_SESSION_ID
+  )
+  for i in range(3):
+    await session_service.append_event(
+        session=session,
+        event=Event(
+            invocation_id=f"seed-{i}",
+            author="user",
+            content=types.Content(
+                role="user", parts=[types.Part(text=f"seed-{i}")]
+            ),
+        ),
+    )
+
+  seen_configs = []
+  seen_event_counts = []
+  original_get_session = session_service.get_session
+
+  async def _spy_get_session(*args, **kwargs):
+    fetched = await original_get_session(*args, **kwargs)
+    seen_configs.append(kwargs.get("config"))
+    seen_event_counts.append(None if fetched is None else len(fetched.events))
+    return fetched
+
+  session_service.get_session = _spy_get_session
+
+  run_config = RunConfig(
+      get_session_config=GetSessionConfig(num_recent_events=1)
+  )
+  async for _ in runner.run_async(
+      user_id=TEST_USER_ID,
+      session_id=TEST_SESSION_ID,
+      new_message=types.Content(role="user", parts=[types.Part(text="hi")]),
+      run_config=run_config,
+  ):
+    pass
+
+  assert seen_configs
+  assert all(
+      config == GetSessionConfig(num_recent_events=1) for config in seen_configs
+  )
+  # num_recent_events=1 bounds the fetched history to the single latest event.
+  assert all(count == 1 for count in seen_event_counts)
 
 
 class TestRunnerWithPlugins:
