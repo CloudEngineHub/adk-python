@@ -84,6 +84,7 @@ if TYPE_CHECKING:
 
   from ..tools._remote_mcp_server import RemoteMcpServer
 
+from ..utils._google_client_headers import merge_tracking_headers
 from .llm_request import LlmRequest
 from .llm_response import LlmResponse
 
@@ -1601,7 +1602,17 @@ async def generate_content_via_interactions(
       'previous_interaction_id': previous_interaction_id,
   }
 
+  # Re-merge tracking headers into any request-time headers (idempotent) so the
+  # interactions path forwards user-supplied headers instead of dropping them.
+  config_headers = None
+  if llm_request.config and llm_request.config.http_options:
+    config_headers = llm_request.config.http_options.headers
+  extra_headers = merge_tracking_headers(config_headers)
+
   async for llm_response in _create_interactions(
-      api_client, create_kwargs=create_kwargs, stream=stream
+      api_client,
+      create_kwargs=create_kwargs,
+      stream=stream,
+      extra_headers=extra_headers,
   ):
     yield llm_response

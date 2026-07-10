@@ -2238,3 +2238,35 @@ async def test_create_interactions_forwards_extra_headers_non_streaming():
   )
 
   assert api_client.create_calls[0]['extra_headers'] == {'x-custom': 'v'}
+
+
+async def test_generate_content_via_interactions_forwards_request_headers():
+  """User headers on the request reach interactions.create as extra_headers."""
+  api_client = _FakeApiClient(_build_simple_text_stream())
+  llm_request = _build_llm_request()
+  llm_request.config.http_options = types.HttpOptions(headers={'x-custom': 'v'})
+
+  await _drain(
+      interactions_utils.generate_content_via_interactions(
+          api_client, llm_request, stream=True
+      )
+  )
+
+  extra_headers = api_client.create_calls[0]['extra_headers']
+  assert extra_headers['x-custom'] == 'v'
+  assert 'google-adk/' in extra_headers['x-goog-api-client']
+
+
+async def test_generate_content_via_interactions_sends_tracking_headers_without_config_headers():
+  """With no request headers, tracking headers are still forwarded."""
+  from google.adk.utils._google_client_headers import get_tracking_headers
+
+  api_client = _FakeApiClient(_build_simple_text_stream())
+
+  await _drain(
+      interactions_utils.generate_content_via_interactions(
+          api_client, _build_llm_request(), stream=True
+      )
+  )
+
+  assert api_client.create_calls[0]['extra_headers'] == get_tracking_headers()
