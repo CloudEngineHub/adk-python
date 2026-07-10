@@ -1475,6 +1475,7 @@ async def _create_interactions(
     *,
     create_kwargs: dict[str, Any],
     stream: bool,
+    extra_headers: dict[str, str] | None = None,
 ) -> AsyncGenerator[LlmResponse, None]:
   """Issue ``interactions.create`` and convert the response(s) to LlmResponses.
 
@@ -1485,8 +1486,12 @@ async def _create_interactions(
   Args:
     api_client: The Google GenAI client.
     create_kwargs: Keyword arguments passed verbatim to
-      ``api_client.aio.interactions.create`` (excluding ``stream``).
+      ``api_client.aio.interactions.create`` (excluding ``stream`` and
+      ``extra_headers``).
     stream: Whether to stream the response.
+    extra_headers: Optional per-request HTTP headers forwarded to
+      ``interactions.create`` (e.g. ADK tracking headers merged with any
+      user-supplied headers). ``None`` sends no extra headers.
 
   Yields:
     LlmResponse objects converted from interaction responses.
@@ -1496,7 +1501,7 @@ async def _create_interactions(
 
   if stream:
     responses = await api_client.aio.interactions.create(
-        **create_kwargs, stream=True
+        **create_kwargs, stream=True, extra_headers=extra_headers
     )
     state = _StreamState()
     async for event in responses:
@@ -1515,7 +1520,7 @@ async def _create_interactions(
         yield llm_response
   else:
     interaction = await api_client.aio.interactions.create(
-        **create_kwargs, stream=False
+        **create_kwargs, stream=False, extra_headers=extra_headers
     )
     logger.info('Interaction response received.')
     logger.debug(build_interactions_response_log(interaction))
