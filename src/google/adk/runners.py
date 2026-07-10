@@ -549,11 +549,6 @@ class Runner:
 
       root_ctx = Context(ic)
       root_agent = node or self.agent
-      is_agent = isinstance(self.agent, BaseAgent)
-      has_sub_agents = is_agent and bool(
-          getattr(self.agent, 'sub_agents', None)
-      )
-      use_scheduler = is_agent and has_sub_agents
 
       # The root chat coordinator's isolation_scope stays None: its own
       # events (FCs, text, synthesized FRs from completed task
@@ -567,11 +562,10 @@ class Runner:
 
       async def _drive_root_node():
         try:
-          if use_scheduler:
-            # Rehydration warning: DynamicNodeScheduler relies on session.events scanning.
-            # Stateful live EUC/LRO streams may rehydrate freshly if not yet persisted.
-            scheduler = DynamicNodeScheduler(state=_LoopState())
-            root_ctx._workflow_scheduler = scheduler
+          # Rehydration warning: DynamicNodeScheduler relies on session.events scanning.
+          # Stateful live EUC/LRO streams may rehydrate freshly if not yet persisted.
+          scheduler = DynamicNodeScheduler(state=_LoopState())
+          root_ctx._workflow_scheduler = scheduler
 
           try:
             await root_ctx._run_node_internal(
@@ -585,6 +579,7 @@ class Runner:
           except DynamicNodeFailError as e:
             raise e.error
         finally:
+          root_ctx._workflow_scheduler = None
           await ic._event_queue.put((done_sentinel, None))
 
       task = asyncio.create_task(_drive_root_node())
@@ -659,7 +654,6 @@ class Runner:
     from .workflow._errors import DynamicNodeFailError
     from .workflow._errors import NodeInterruptedError
     from .workflow._workflow import _LoopState
-    from .workflow._workflow import Workflow
 
     ic = self._new_invocation_context_for_live(
         session,
@@ -670,15 +664,12 @@ class Runner:
 
     root_ctx = Context(ic)
     root_agent = self.agent
-    is_workflow = isinstance(root_agent, Workflow)
-
     done_sentinel = object()
 
     async def _drive_root_node():
       try:
-        if is_workflow:
-          scheduler = DynamicNodeScheduler(state=_LoopState())
-          root_ctx._workflow_scheduler = scheduler
+        scheduler = DynamicNodeScheduler(state=_LoopState())
+        root_ctx._workflow_scheduler = scheduler
 
         try:
           await root_ctx.run_node(
@@ -690,6 +681,7 @@ class Runner:
         except DynamicNodeFailError as e:
           raise e.error
       finally:
+        root_ctx._workflow_scheduler = None
         await ic._event_queue.put((done_sentinel, None))
 
     task = asyncio.create_task(_drive_root_node())
