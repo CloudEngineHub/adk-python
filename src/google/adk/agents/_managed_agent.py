@@ -45,6 +45,7 @@ from ..tools._remote_mcp_server import RemoteMcpServer
 from ..tools.base_tool import BaseTool
 from ..tools.tool_context import ToolContext
 from ..utils._google_client_headers import get_tracking_http_options
+from ..utils._google_client_headers import merge_tracking_headers
 from ..utils.context_utils import Aclosing
 from ..utils.env_utils import is_enterprise_mode_enabled
 from .base_agent import BaseAgent
@@ -340,6 +341,16 @@ class ManagedAgent(BaseAgent):
     if prev_interaction_id:
       create_kwargs['previous_interaction_id'] = prev_interaction_id
 
+    # Request-time header merge, parity with google_llm.generate_content_async:
+    # combine any RunConfig headers with ADK tracking headers, non-destructively.
+    run_config = ctx.run_config
+    run_config_headers = (
+        run_config.http_options.headers
+        if run_config is not None and run_config.http_options is not None
+        else None
+    )
+    extra_headers = merge_tracking_headers(run_config_headers)
+
     logger.info(
         'Sending request via interactions API, agent: %s, stream: %s, '
         'previous_interaction_id: %s, environment: %s',
@@ -364,7 +375,10 @@ class ManagedAgent(BaseAgent):
       with tracer.start_as_current_span('managed_agent_interaction'):
         async with Aclosing(
             _create_interactions(
-                self.api_client, create_kwargs=create_kwargs, stream=True
+                self.api_client,
+                create_kwargs=create_kwargs,
+                stream=True,
+                extra_headers=extra_headers,
             )
         ) as agen:
           async for llm_response in agen:

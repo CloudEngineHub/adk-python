@@ -359,6 +359,7 @@ def _user_ctx(text, *, session_events=None, invocation_id='inv1', branch=None):
   ctx.invocation_id = invocation_id
   ctx.branch = branch
   ctx.session.events = session_events or []
+  ctx.run_config.http_options = None  # no per-request headers by default
   return ctx
 
 
@@ -394,7 +395,9 @@ def _final_text_response(text):
 def test_run_async_yields_events_with_ids(monkeypatch):
   from google.adk.agents import _managed_agent as mod
 
-  async def _fake_stream(api_client, *, create_kwargs, stream):
+  async def _fake_stream(
+      api_client, *, create_kwargs, stream, extra_headers=None
+  ):
     yield _make_llm_response('Hello!', 'int_1', 'env_1')
 
   monkeypatch.setattr(mod, '_create_interactions', _fake_stream)
@@ -465,10 +468,59 @@ def test_run_async_sets_background_true():
   assert create_kwargs['background'] is True
 
 
+def test_run_async_merges_run_config_headers_into_extra_headers():
+  client = _RecordingClient([[]])
+  agent = ManagedAgent(name='mgr', agent_id='agents/a', api_client=client)
+  ctx = _user_ctx('hi')
+  ctx.run_config.http_options = genai_types.HttpOptions(
+      headers={'x-custom': 'v'}
+  )
+
+  asyncio.run(_drain(agent._run_async_impl(ctx)))
+
+  extra_headers = client.aio.interactions.calls[0]['extra_headers']
+  assert extra_headers['x-custom'] == 'v'
+  assert 'google-adk/' in extra_headers['x-goog-api-client']
+  assert 'google-adk/' in extra_headers['user-agent']
+
+
+def test_run_async_sends_tracking_headers_without_run_config_headers():
+  from google.adk.utils._google_client_headers import get_tracking_headers
+
+  client = _RecordingClient([[]])
+  agent = ManagedAgent(name='mgr', agent_id='agents/a', api_client=client)
+  ctx = _user_ctx('hi')  # http_options defaults to None
+
+  asyncio.run(_drain(agent._run_async_impl(ctx)))
+
+  assert (
+      client.aio.interactions.calls[0]['extra_headers']
+      == get_tracking_headers()
+  )
+
+
+def test_run_async_sends_tracking_headers_when_http_options_has_no_headers():
+  from google.adk.utils._google_client_headers import get_tracking_headers
+
+  client = _RecordingClient([[]])
+  agent = ManagedAgent(name='mgr', agent_id='agents/a', api_client=client)
+  ctx = _user_ctx('hi')
+  ctx.run_config.http_options = genai_types.HttpOptions()  # headers is None
+
+  asyncio.run(_drain(agent._run_async_impl(ctx)))
+
+  assert (
+      client.aio.interactions.calls[0]['extra_headers']
+      == get_tracking_headers()
+  )
+
+
 def test_run_async_yields_multiple_events_in_order(monkeypatch):
   from google.adk.agents import _managed_agent as mod
 
-  async def _fake_stream(api_client, *, create_kwargs, stream):
+  async def _fake_stream(
+      api_client, *, create_kwargs, stream, extra_headers=None
+  ):
     yield _make_llm_response('one', 'int_1', 'env_1')
     yield _make_llm_response('two', 'int_1', 'env_1')
 
@@ -485,7 +537,7 @@ def test_run_async_yields_multiple_events_in_order(monkeypatch):
 def test_run_async_error_yields_error_event(monkeypatch):
   from google.adk.agents import _managed_agent as mod
 
-  async def _boom(api_client, *, create_kwargs, stream):
+  async def _boom(api_client, *, create_kwargs, stream, extra_headers=None):
     raise RuntimeError('api exploded')
     yield  # pragma: no cover
 
@@ -507,7 +559,7 @@ def test_run_async_api_error_surfaces_backend_status_and_message(monkeypatch):
   from google.adk.agents import _managed_agent as mod
   from google.genai import errors
 
-  async def _boom(api_client, *, create_kwargs, stream):
+  async def _boom(api_client, *, create_kwargs, stream, extra_headers=None):
     raise errors.ClientError(
         429,
         {
@@ -571,7 +623,9 @@ def test_managed_agent_exported_from_package():
 def test_run_async_non_streaming_suppresses_partials(monkeypatch):
   from google.adk.agents import _managed_agent as mod
 
-  async def _fake_stream(api_client, *, create_kwargs, stream):
+  async def _fake_stream(
+      api_client, *, create_kwargs, stream, extra_headers=None
+  ):
     yield _partial_text_response('thinking')
     yield _partial_text_response('searching')
     yield _final_text_response('Final answer.')
@@ -593,7 +647,9 @@ def test_run_async_non_streaming_suppresses_partials(monkeypatch):
 def test_run_async_sse_yields_all_partials(monkeypatch):
   from google.adk.agents import _managed_agent as mod
 
-  async def _fake_stream(api_client, *, create_kwargs, stream):
+  async def _fake_stream(
+      api_client, *, create_kwargs, stream, extra_headers=None
+  ):
     yield _partial_text_response('thinking')
     yield _partial_text_response('searching')
     yield _final_text_response('Final answer.')
@@ -617,7 +673,9 @@ def test_run_async_sse_yields_all_partials(monkeypatch):
 def test_run_async_non_streaming_surfaces_error_event(monkeypatch):
   from google.adk.agents import _managed_agent as mod
 
-  async def _fake_stream(api_client, *, create_kwargs, stream):
+  async def _fake_stream(
+      api_client, *, create_kwargs, stream, extra_headers=None
+  ):
     yield _partial_text_response('thinking')
     yield LlmResponse(
         error_code='UNKNOWN_ERROR', error_message='boom', turn_complete=True
@@ -640,7 +698,9 @@ def test_run_async_non_streaming_surfaces_error_event(monkeypatch):
 def test_run_async_default_run_config_suppresses_partials(monkeypatch):
   from google.adk.agents import _managed_agent as mod
 
-  async def _fake_stream(api_client, *, create_kwargs, stream):
+  async def _fake_stream(
+      api_client, *, create_kwargs, stream, extra_headers=None
+  ):
     yield _partial_text_response('thinking')
     yield _final_text_response('Final answer.')
 
