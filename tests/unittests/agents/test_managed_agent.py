@@ -763,6 +763,24 @@ def test_run_async_non_streaming_final_event_carries_grounding_and_usage():
   assert final.usage_metadata.candidates_token_count == 7
 
 
+def test_mode_defaults_to_none():
+  agent = ManagedAgent(name='m', agent_id='a')
+  assert agent.mode is None
+
+
+def test_mode_single_turn_is_accepted():
+  agent = ManagedAgent(name='m', agent_id='a', mode='single_turn')
+  assert agent.mode == 'single_turn'
+
+
+def test_mode_chat_is_rejected():
+  from pydantic import ValidationError
+  import pytest
+
+  with pytest.raises(ValidationError):
+    ManagedAgent(name='m', agent_id='a', mode='chat')
+
+
 async def _drain(agen):
   async for _ in agen:
     pass

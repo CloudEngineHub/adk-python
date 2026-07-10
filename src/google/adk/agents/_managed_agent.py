@@ -19,6 +19,7 @@ import logging
 from typing import Any
 from typing import AsyncGenerator
 from typing import Callable
+from typing import Literal
 from typing import Optional
 from typing import TYPE_CHECKING
 from typing import Union
@@ -145,6 +146,15 @@ class ManagedAgent(BaseAgent):
   ] = Field(default_factory=list)
   """Server-side tools: ADK built-in tools, raw types.Tool configs, or
   RemoteMcpServer specs for server-side remote MCP."""
+
+  mode: Literal['single_turn'] | None = None
+  """Composition mode.
+
+  Only ``single_turn`` is supported: the agent runs as an inline single-turn
+  tool of a parent ``LlmAgent`` (the recommended replacement for ``AgentTool``),
+  preserving its internal events in the shared session. ``None`` (default)
+  leaves the agent usable as an LLM-transfer target.
+  """
 
   _api_client: Optional[Client] = PrivateAttr(default=None)
 
