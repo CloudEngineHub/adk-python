@@ -599,11 +599,17 @@ def _recover_compacted_function_calls(
   if not call_event_by_id:
     return events
 
+  # Keep the highest-timestamp response per id so a sibling that completed
+  # before being compacted contributes its real result, not its stale
+  # placeholder; ties fall back to source order.
   response_event_by_id: dict[str, Event] = {}
   for event in source_events:
     for function_response in event.get_function_responses():
-      if function_response.id:
-        response_event_by_id.setdefault(function_response.id, event)
+      if not function_response.id:
+        continue
+      existing = response_event_by_id.get(function_response.id)
+      if existing is None or event.timestamp >= existing.timestamp:
+        response_event_by_id[function_response.id] = event
 
   result: list[Event] = []
   reinjected_ids: set[str] = set()
