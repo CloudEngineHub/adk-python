@@ -145,7 +145,7 @@ async def test_remote_mcp_maps_grounding_lite():
       tools=[
           RemoteMcpServer(
               name='maps_grounding_lite',
-              url='https://mapstools.googleapis.com/mcp',
+              url='https://mapstools.mtls.googleapis.com/mcp',
               header_provider=lambda ctx: {
                   'X-Goog-Api-Key': os.environ['GOOGLE_MAPS_API_KEY']
               },
