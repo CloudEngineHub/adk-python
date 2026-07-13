@@ -1235,7 +1235,7 @@ def _add_model_input_context_to_user_content(
 async def _add_instructions_to_user_content(
     invocation_context: InvocationContext,
     llm_request: LlmRequest,
-    instruction_contents: list,
+    instruction_contents: list[types.Content],
 ) -> None:
   """Insert instruction-related contents at proper position in conversation.
 
