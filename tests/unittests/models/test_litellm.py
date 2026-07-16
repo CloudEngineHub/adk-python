@@ -6335,3 +6335,14 @@ async def test_streaming_tool_call_brace_in_string_does_not_falsely_complete(
   args_by_name = {p.function_call.name: p.function_call.args for p in parts}
   assert args_by_name["my_func"] == json.loads(full_args_a)
   assert args_by_name["other_func"] == json.loads(full_args_b)
+
+
+def test_model_dump_json_excludes_llm_client():
+  lite_llm_model = LiteLlm(model="test_model")
+
+  dumped = lite_llm_model.model_dump(mode="json")
+  dumped_json = lite_llm_model.model_dump_json()
+
+  assert "llm_client" not in dumped
+  assert "llm_client" not in json.loads(dumped_json)
+  assert dumped["model"] == "test_model"
