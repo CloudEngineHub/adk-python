@@ -1019,8 +1019,10 @@ class BaseLlmFlow(ABC):
             )
         ) as agen:
           async for event in agen:
-            # Update the mutable event id to avoid conflict
-            model_response_event.id = Event.new_id()
+            # Partial chunks of one streaming response share the base id; mint a
+            # fresh id only after a complete event so distinct responses differ.
+            if not event.partial:
+              model_response_event.id = Event.new_id()
             model_response_event.timestamp = platform_time.get_time()
             yield event
 
