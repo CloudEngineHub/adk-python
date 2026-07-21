@@ -31,6 +31,7 @@ from google.adk.events import event as event_lib
 from google.adk.events import event_actions as event_actions_lib
 from google.adk.models import llm_request as llm_request_lib
 from google.adk.models import llm_response as llm_response_lib
+from google.adk.platform import thread as platform_thread
 from google.adk.plugins import bigquery_agent_analytics_plugin
 from google.adk.plugins import plugin_manager as plugin_manager_lib
 from google.adk.sessions import base_session_service as base_session_service_lib
@@ -10357,7 +10358,9 @@ class TestHardening:
       except BaseException as e:  # noqa: BLE001 - collecting for assertion
         errors.append(e)
 
-    threads = [threading.Thread(target=run_in_fresh_loop) for _ in range(2)]
+    threads = [
+        platform_thread.create_thread(run_in_fresh_loop) for _ in range(2)
+    ]
     for t in threads:
       t.start()
     for t in threads:
@@ -10487,7 +10490,9 @@ class TestHardening:
       except BaseException as e:  # noqa: BLE001
         errors.append(e)
 
-    threads = [threading.Thread(target=run_in_fresh_loop) for _ in range(2)]
+    threads = [
+        platform_thread.create_thread(run_in_fresh_loop) for _ in range(2)
+    ]
     for t in threads:
       t.start()
     # Deterministic rendezvous: hold the owner inside setup until BOTH
@@ -10534,7 +10539,9 @@ class TestHardening:
       except BaseException as e:  # noqa: BLE001
         errors.append(e)
 
-    threads = [threading.Thread(target=run_in_fresh_loop) for _ in range(2)]
+    threads = [
+        platform_thread.create_thread(run_in_fresh_loop) for _ in range(2)
+    ]
     for t in threads:
       t.start()
     entered.wait(timeout=5)
