@@ -1089,3 +1089,121 @@ def test_canonical_instruction_async_provider():
 
   assert text == 'async provider'
   assert bypass is True
+
+
+def test_instruction_defaults_to_empty_and_is_omitted():
+  client = _RecordingClient([[]])
+  agent = ManagedAgent(name='mgr', agent_id='agents/a', api_client=client)
+
+  asyncio.run(_drain(agent._run_async_impl(_user_ctx('hi'))))
+
+  assert agent.instruction == ''
+  assert 'system_instruction' not in client.aio.interactions.calls[0]
+
+
+def test_string_instruction_forwarded_as_system_instruction():
+  client = _RecordingClient([[]])
+  agent = ManagedAgent(
+      name='mgr',
+      agent_id='agents/a',
+      instruction='You are a terse assistant.',
+      api_client=client,
+  )
+
+  asyncio.run(_drain(agent._run_async_impl(_user_ctx('hi'))))
+
+  assert (
+      client.aio.interactions.calls[0]['system_instruction']
+      == 'You are a terse assistant.'
+  )
+
+
+def test_sync_instruction_provider_forwarded_and_bypasses_injection():
+  client = _RecordingClient([[]])
+
+  # The '{name}' must be left literal: providers bypass state injection.
+  agent = ManagedAgent(
+      name='mgr',
+      agent_id='agents/a',
+      instruction=lambda ctx: 'Persona for {name}',
+      api_client=client,
+  )
+
+  asyncio.run(_drain(agent._run_async_impl(_user_ctx('hi'))))
+
+  assert (
+      client.aio.interactions.calls[0]['system_instruction']
+      == 'Persona for {name}'
+  )
+
+
+def test_async_instruction_provider_forwarded():
+  client = _RecordingClient([[]])
+
+  async def provider(ctx):
+    return 'Async persona.'
+
+  agent = ManagedAgent(
+      name='mgr',
+      agent_id='agents/a',
+      instruction=provider,
+      api_client=client,
+  )
+
+  asyncio.run(_drain(agent._run_async_impl(_user_ctx('hi'))))
+
+  assert (
+      client.aio.interactions.calls[0]['system_instruction'] == 'Async persona.'
+  )
+
+
+def test_instruction_sent_on_chained_turn():
+  prior = Event(
+      author='mgr', interaction_id='int_prev', environment_id='env_prev'
+  )
+  client = _RecordingClient([[]])
+  agent = ManagedAgent(
+      name='mgr',
+      agent_id='agents/a',
+      instruction='Stay in character.',
+      api_client=client,
+  )
+  ctx = _user_ctx('again', session_events=[prior])
+
+  asyncio.run(_drain(agent._run_async_impl(ctx)))
+
+  create_kwargs = client.aio.interactions.calls[0]
+  assert create_kwargs['previous_interaction_id'] == 'int_prev'
+  assert create_kwargs['system_instruction'] == 'Stay in character.'
+
+
+def test_string_instruction_injects_session_state():
+  from google.adk.agents.invocation_context import InvocationContext
+  from google.adk.sessions.in_memory_session_service import InMemorySessionService
+  from google.adk.sessions.session import Session
+
+  client = _RecordingClient([[]])
+  agent = ManagedAgent(
+      name='mgr',
+      agent_id='agents/a',
+      instruction='Discuss {topic}.',
+      api_client=client,
+  )
+  session = Session(
+      app_name='test', user_id='user', id='s1', state={'topic': 'volcanoes'}
+  )
+  ctx = InvocationContext(
+      invocation_id='inv1',
+      session=session,
+      session_service=InMemorySessionService(),
+      user_content=genai_types.Content(
+          role='user', parts=[genai_types.Part(text='hi')]
+      ),
+  )
+
+  asyncio.run(_drain(agent._run_async_impl(ctx)))
+
+  assert (
+      client.aio.interactions.calls[0]['system_instruction']
+      == 'Discuss volcanoes.'
+  )

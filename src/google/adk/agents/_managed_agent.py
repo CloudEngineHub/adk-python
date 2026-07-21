@@ -51,6 +51,7 @@ from ..utils._google_client_headers import merge_tracking_headers
 from ..utils.content_utils import to_user_content
 from ..utils.context_utils import Aclosing
 from ..utils.env_utils import is_enterprise_mode_enabled
+from ..utils.instructions_utils import inject_session_state
 from ..utils.instructions_utils import InstructionProvider
 from .base_agent import BaseAgent
 from .context import Context
@@ -394,6 +395,15 @@ class ManagedAgent(BaseAgent):
     )
     interaction_tools = await self._resolve_backend_tools(ctx)
 
+    raw_si, bypass_state_injection = await self.canonical_instruction(
+        ReadonlyContext(ctx)
+    )
+    system_instruction = raw_si
+    if not bypass_state_injection:
+      system_instruction = await inject_session_state(
+          raw_si, ReadonlyContext(ctx)
+      )
+
     create_kwargs: dict[str, Any] = {
         'agent': self.agent_id,
         'input': input_steps,
@@ -411,6 +421,8 @@ class ManagedAgent(BaseAgent):
       create_kwargs['agent_config'] = self.agent_config
     if prev_interaction_id:
       create_kwargs['previous_interaction_id'] = prev_interaction_id
+    if system_instruction:
+      create_kwargs['system_instruction'] = system_instruction
 
     # Request-time header merge, parity with google_llm.generate_content_async:
     # combine any RunConfig headers with ADK tracking headers, non-destructively.
@@ -436,7 +448,7 @@ class ManagedAgent(BaseAgent):
         build_interactions_request_log(
             model=self.agent_id,
             input_steps=input_steps,
-            system_instruction=None,
+            system_instruction=system_instruction or None,
             tools=interaction_tools if interaction_tools else None,
             generation_config=None,
             previous_interaction_id=prev_interaction_id,
