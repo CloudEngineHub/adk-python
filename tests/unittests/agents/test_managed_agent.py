@@ -1044,3 +1044,48 @@ def test_run_async_forwards_mcp_server_param():
   mcp = [t for t in create_kwargs['tools'] if t['type'] == 'mcp_server'][0]
   assert mcp['url'] == 'https://mcp.example.com/mcp'
   assert mcp['headers'] == {'X-Goog-Api-Key': 'k'}
+
+
+def test_canonical_instruction_str():
+  agent = ManagedAgent(
+      name='mgr',
+      agent_id='agents/a',
+      instruction='hello',
+      api_client=_FakeClient(),
+  )
+
+  text, bypass = asyncio.run(agent.canonical_instruction(MagicMock()))
+
+  assert text == 'hello'
+  assert bypass is False
+
+
+def test_canonical_instruction_sync_provider():
+  agent = ManagedAgent(
+      name='mgr',
+      agent_id='agents/a',
+      instruction=lambda ctx: 'from provider',
+      api_client=_FakeClient(),
+  )
+
+  text, bypass = asyncio.run(agent.canonical_instruction(MagicMock()))
+
+  assert text == 'from provider'
+  assert bypass is True
+
+
+def test_canonical_instruction_async_provider():
+  async def provider(ctx):
+    return 'async provider'
+
+  agent = ManagedAgent(
+      name='mgr',
+      agent_id='agents/a',
+      instruction=provider,
+      api_client=_FakeClient(),
+  )
+
+  text, bypass = asyncio.run(agent.canonical_instruction(MagicMock()))
+
+  assert text == 'async provider'
+  assert bypass is True
