@@ -8548,6 +8548,19 @@ class TestDropStats:
     bp._prepare_arrow_batch = mock.MagicMock(return_value=fake_batch)
 
   @pytest.mark.asyncio
+  async def test_flush_waits_for_dequeued_write(self, dummy_arrow_schema):
+    bp = self._make_processor(dummy_arrow_schema)
+    await bp.append({"event": 0})
+    await bp._queue.get()
+
+    flush_task = asyncio.create_task(bp.flush())
+    await asyncio.sleep(0)
+
+    assert not flush_task.done()
+    bp._queue.task_done()
+    await flush_task
+
+  @pytest.mark.asyncio
   async def test_queue_full_drops_are_counted(self, dummy_arrow_schema):
     # Writer is not started, so a size-1 queue fills after one append and the
     # next two appends overflow and are dropped.
