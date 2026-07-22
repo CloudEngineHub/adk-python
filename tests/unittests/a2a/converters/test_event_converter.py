@@ -35,6 +35,7 @@ from google.adk.a2a.converters.part_converter import convert_genai_part_to_a2a_p
 from google.adk.a2a.converters.utils import ADK_METADATA_KEY_PREFIX
 from google.adk.agents.invocation_context import InvocationContext
 from google.adk.events.event import Event
+from google.genai import types as genai_types
 import pytest
 
 
@@ -109,7 +110,7 @@ class TestEventConverter:
 
     assert result == {"key": "value"}
     mock_value.model_dump.assert_called_once_with(
-        exclude_none=True, by_alias=True
+        mode="json", exclude_none=True, by_alias=True
     )
 
   def test_serialize_metadata_value_with_model_dump_exception(self):
@@ -130,6 +131,51 @@ class TestEventConverter:
     value = "simple_string"
     result = _serialize_metadata_value(value)
     assert result == "simple_string"
+
+  def _serialized_metadata_with_bytes(self):
+    value = genai_types.FunctionResponse(
+        name="computer_use",
+        response={"inline_data": {"data": b"\x89PNG_BYTES"}},
+    )
+    result = _serialize_metadata_value(value)
+
+    # No raw bytes anywhere in the serialized structure.
+    def _assert_no_bytes(obj):
+      if isinstance(obj, bytes):
+        raise AssertionError("raw bytes leaked into serialized metadata")
+      if isinstance(obj, dict):
+        for v in obj.values():
+          _assert_no_bytes(v)
+      elif isinstance(obj, (list, tuple)):
+        for v in obj:
+          _assert_no_bytes(v)
+
+    _assert_no_bytes(result)
+    return result
+
+  @pytest.mark.skipif(
+      _compat.IS_A2A_V1, reason="0.3-only proto_utils.dict_to_struct"
+  )
+  def test_serialize_metadata_value_with_bytes_to_struct_v03(self):
+    """0.3: serialized metadata builds a proto Struct without raising."""
+    from a2a.utils import proto_utils
+
+    result = self._serialized_metadata_with_bytes()
+    struct = proto_utils.dict_to_struct({"meta": result})
+    assert struct is not None
+
+  @pytest.mark.skipif(
+      not _compat.IS_A2A_V1, reason="1.x-only ParseDict into proto Struct"
+  )
+  def test_serialize_metadata_value_with_bytes_to_struct_v1x(self):
+    """1.x: serialized metadata ParseDicts into a proto Struct."""
+    from google.protobuf import struct_pb2
+    from google.protobuf.json_format import ParseDict
+
+    result = self._serialized_metadata_with_bytes()
+    struct = struct_pb2.Struct()
+    ParseDict({"meta": result}, struct)
+    assert struct is not None
 
   def test_get_context_metadata_success(self):
     """Test successful context metadata creation."""
@@ -601,7 +647,6 @@ class TestEventConverter:
   def test_convert_event_to_a2a_message_with_multiple_parts_returned(self):
     """Test event to message conversion when part_converter returns multiple parts."""
     from google.adk.a2a.converters.event_converter import convert_event_to_a2a_message
-    from google.genai import types as genai_types
 
     # Arrange
     mock_genai_part = genai_types.Part(text="source part")
@@ -815,7 +860,6 @@ class TestA2AToEventConverters:
   def test_convert_a2a_message_to_event_success(self):
     """Test successful conversion of A2A message to event."""
     from google.adk.a2a.converters.event_converter import convert_a2a_message_to_event
-    from google.genai import types as genai_types
 
     # Use a real A2A part (production reads its metadata); the part_converter
     # callback is still mocked to return a canned genai Part.
@@ -844,7 +888,6 @@ class TestA2AToEventConverters:
   def test_convert_a2a_message_to_event_with_multiple_parts_returned(self):
     """Test message to event conversion when part_converter returns multiple parts."""
     from google.adk.a2a.converters.event_converter import convert_a2a_message_to_event
-    from google.genai import types as genai_types
 
     # Arrange
     mock_a2a_part = _compat.make_text_part("part 1")
@@ -945,7 +988,6 @@ class TestA2AToEventConverters:
   def test_convert_a2a_message_to_event_part_conversion_exception(self):
     """Test handling when part conversion raises exception."""
     from google.adk.a2a.converters.event_converter import convert_a2a_message_to_event
-    from google.genai import types as genai_types
 
     # Setup mock to raise exception. The A2A parts are real (production
     # reads their metadata); the converter callback drives the behavior.
