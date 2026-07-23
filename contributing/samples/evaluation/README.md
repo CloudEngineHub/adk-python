@@ -37,8 +37,9 @@ answer.
 
 ## Samples
 
-| Sample | Concept | Criteria |
-| ------ | ------- | -------- |
+| Sample                                | Concept                                | Criteria                                            |
+| ------------------------------------- | -------------------------------------- | --------------------------------------------------- |
+| [`basic_criteria`](./basic_criteria/) | Deterministic, reference-based scoring | `tool_trajectory_avg_score`, `response_match_score` |
 
 ## Graph
 
