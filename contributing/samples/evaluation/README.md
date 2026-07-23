@@ -37,9 +37,10 @@ answer.
 
 ## Samples
 
-| Sample                                | Concept                                | Criteria                                            |
-| ------------------------------------- | -------------------------------------- | --------------------------------------------------- |
-| [`basic_criteria`](./basic_criteria/) | Deterministic, reference-based scoring | `tool_trajectory_avg_score`, `response_match_score` |
+| Sample                                            | Concept                                     | Criteria                                            |
+| ------------------------------------------------- | ------------------------------------------- | --------------------------------------------------- |
+| [`basic_criteria`](./basic_criteria/)             | Deterministic, reference-based scoring      | `tool_trajectory_avg_score`, `response_match_score` |
+| [`test_file_vs_evalset`](./test_file_vs_evalset/) | `.test.json` vs `.evalset.json` conventions | `tool_trajectory_avg_score`, `response_match_score` |
 
 ## Graph
 
